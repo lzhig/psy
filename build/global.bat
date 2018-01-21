@@ -1,0 +1,3 @@
+set PROJECT_DIR=..
+set SRC_DIR=%PROJECT_DIR%\src
+set TOOLS_DIR=%PROJECT_DIR%\tools

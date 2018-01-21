@@ -1,0 +1,8 @@
+{
+    "debug":true,
+    "cpu_num":4,
+    "server":{
+        "addr":"0.0.0.0:8010",
+        "max_users":1000
+    }
+}

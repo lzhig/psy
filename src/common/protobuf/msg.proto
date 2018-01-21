@@ -1,0 +1,40 @@
+syntax = "proto3";
+package msg;
+
+
+// protocol
+
+enum MessageID {
+    Msg_Login = 0; // login
+}
+
+message Protocol {
+    uint32 msgid = 1; // msg id
+    LoginReq loginReq = 2; // login
+}
+
+
+// login
+enum LoginType {
+    Login_Facebook = 0; // facebook
+}
+
+message LoginFBReq {
+    string fb_id = 1; // facebook id
+    string token = 2; // facebook token
+    string name = 3; // facebook username
+}
+
+message LoginReq {
+    LoginType type = 1;
+    LoginFBReq fb = 2; // facebook
+}
+
+
+// game
+enum CardColorSuit {
+    Suit_Diamonds = 0;
+    Suit_Clubs = 1;
+    Suit_Hearts = 2;
+    Suit_Spades = 3;
+}
