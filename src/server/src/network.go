@@ -9,57 +9,92 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/lzhig/rapidgo/net"
+	"./msg"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/lzhig/rapidgo/rapidnet"
 )
 
 // NetworkEngine type
 type NetworkEngine struct {
-	app *App
+	server *rapidnet.TCPServer
 
-	server   *net.TCPServer
-	callback netCallback
+	eventChan <-chan *rapidnet.Event
+
+	protoHandler protocolHandler
+}
+
+func (obj *NetworkEngine) init() {
+	obj.protoHandler.init()
 }
 
 // Start function
-func (obj *NetworkEngine) Start(addr string, maxUsers uint32) {
-	obj.server = net.CreateTCPServer()
+func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
+	obj.server = rapidnet.CreateTCPServer()
 
-	err := obj.server.Start(addr, maxUsers, obj.callback)
+	var err error
+	obj.eventChan, err = obj.server.Start(addr, maxUsers)
 
-	fmt.Println(err)
+	if err == nil {
+		ctx, _ := gApp.CreateCancelContext()
+
+		gApp.GoRoutineArgs(ctx,
+			func(ctx context.Context, args ...interface{}) {
+				defer debug("exit NetworkEngine Event goroutine")
+				for {
+					select {
+					case <-ctx.Done():
+						return
+
+					case event := <-obj.eventChan:
+						switch event.Type {
+						case rapidnet.EventConnected:
+							fmt.Println(event.Conn.RemoteAddr().String(), "connected")
+							ctx, _ := context.WithCancel(ctx)
+							gApp.GoRoutineArgs(ctx, obj.handleConnection, event.Conn)
+						case rapidnet.EventDisconnected:
+							fmt.Println(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
+
+						case rapidnet.EventSendFailed:
+							fmt.Println(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
+						}
+					}
+				}
+			})
+	}
+	return err
 }
 
-// // Start function
-// func (obj *NetworkEngine) Start() {
-// 	ctx, _ := obj.app.CreateCancelContext()
+func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interface{}) {
+	defer debug("exit NetworkEngine handleConnection goroutine")
+	conn := args[0].(*rapidnet.Connection)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case data := <-conn.ReceiveDataChan():
+			if data == nil {
+				return
+			}
+			fmt.Println("Recieve data. size:", len(data))
 
-// 	obj.app.GoRoutine(ctx,
-// 		func(ctx context.Context, args ...interface{}) {
-// 			fmt.Println(args)
-// 			for {
-// 				select {
-// 				case <-ctx.Done():
-// 					fmt.Println("goroutine 1 exit.")
-// 					return
-// 				}
-// 			}
-// 		},
-// 		1)
-// }
+			p := &msg.Protocol{}
+			if err := proto.Unmarshal(data, p); err != nil {
+				fmt.Println(err)
+				conn.Disconnect()
+				return
+			}
 
-type netCallback struct {
+			obj.protoHandler.getProtoChan() <- &ProtocolConnection{p: p, conn: conn}
+		}
+	}
 }
 
-func (callback netCallback) Disconnected(conn *net.Connection, err error) {
-	fmt.Println(conn.RemoteAddr().String(), "disconnected error: ", err)
-}
-
-func (callback netCallback) Connected(conn *net.Connection) {
-	fmt.Println(conn.RemoteAddr().String(), "connected")
-}
-
-func (callback netCallback) Received(conn *net.Connection, packet net.Packet) {
-	fmt.Println(conn.RemoteAddr().String(), "data received")
+// ProtocolConnection type
+type ProtocolConnection struct {
+	p    *msg.Protocol
+	conn *rapidnet.Connection
 }

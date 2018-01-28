@@ -10,6 +10,27 @@ package main
 
 // UserManager type
 type UserManager struct {
+	users map[int]*User
+}
+
+func (obj *UserManager) init() {
+	obj.users = make(map[int]*User)
+}
+
+func (obj *UserManager) fbUserExists(fbID, name string) int {
+	return db.getUIDFacebook(fbID, name)
+}
+
+func (obj *UserManager) fbUserCreate(fbID, name string) int {
+	uid := db.createFacebookUser(fbID, name)
+	if uid != 0 {
+		obj.fbUserLoad(uid)
+	}
+	return uid
+}
+
+func (obj *UserManager) fbUserLoad(uid int) {
+
 }
 
 // LoginFacebookUser function
@@ -26,8 +47,7 @@ func (obj *UserManager) LoginFacebookUser(id, token, name string) {
 
 // The User type represents a player
 type User struct {
-	uid       uint32
-	username  string // 用户名
-	aliasname string // 标注名
-	diamonds  uint32 // 钻石
+	uid      uint32
+	name     string // 名字
+	diamonds uint32 // 钻石
 }

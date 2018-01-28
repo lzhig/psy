@@ -9,6 +9,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/lzhig/rapidgo/base"
@@ -20,21 +21,42 @@ type App struct {
 
 	config  *Config
 	network *NetworkEngine
+
+	gm *gameManager
 }
 
 // Init function
 func (obj *App) Init() error {
-	config := &Config{}
-	if err := config.Load("config.json"); err != nil {
+	obj.config = &Config{}
+	if err := obj.config.Load("config.json"); err != nil {
 		return err
 	}
 
-	runtime.GOMAXPROCS(config.CPUNum)
+	if obj.config.Debug {
+		debug = fmt.Println
+	} else {
+		debug = func(a ...interface{}) (int, error) { return 0, nil }
+	}
+
+	logInfo("version:", obj.config.Version)
+
+	runtime.GOMAXPROCS(obj.config.CPUNum)
 
 	obj.App.Init()
 
+	mysqlCfg := obj.config.Mysql
+	if err := db.open(mysqlCfg.Addr, mysqlCfg.Username, mysqlCfg.Password, mysqlCfg.Db); err != nil {
+		return err
+	}
+
 	// init services
-	obj.network = &NetworkEngine{app: obj}
+	loginService.init()
+
+	obj.network = &NetworkEngine{}
+	obj.network.init()
+
+	// gm
+	obj.gm = &gameManager{}
 
 	return nil
 }
@@ -42,6 +64,12 @@ func (obj *App) Init() error {
 // Start function
 func (obj *App) Start() {
 	obj.network.Start(obj.config.Server.Addr, obj.config.Server.MaxUsers)
+	obj.gm.Start(obj.config.Server.Gm)
 
 	obj.App.Start()
+}
+
+// End function
+func (obj *App) End() {
+	db.close()
 }

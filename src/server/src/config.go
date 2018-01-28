@@ -18,13 +18,23 @@ import (
 type serverConfig struct {
 	Addr     string `json:"addr"`
 	MaxUsers uint32 `json:"max_users"`
+	Gm       string `json:"gm"`
+}
+
+type mysqlConfig struct {
+	Addr     string `json:"addr"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Db       string `json:"db"`
 }
 
 // Config type
 type Config struct {
-	Debug  bool         `json:"debug"`
-	CPUNum int          `json:"cpu_num"`
-	Server serverConfig `json:"server"`
+	Version string       `json:"version"`
+	Debug   bool         `json:"debug"`
+	CPUNum  int          `json:"cpu_num"`
+	Server  serverConfig `json:"server"`
+	Mysql   mysqlConfig  `json:"mysql:`
 }
 
 // Load function

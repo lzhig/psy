@@ -5,18 +5,26 @@ package msg;
 // protocol
 
 enum MessageID {
-    Msg_Login = 0; // login
+    Login_Req = 0; // login request
+    Login_Rsp = 1; // login response
+}
+
+enum ErrorID {
+    Ok = 0; // success
+    Invalid_Params = 1; // invalid params
+    DB_Error = 2; // db error
 }
 
 message Protocol {
-    uint32 msgid = 1; // msg id
-    LoginReq loginReq = 2; // login
+    MessageID msgid = 1; // msg id
+    LoginReq loginReq = 2; // login request
+    LoginRsp loginRsp = 3; // login response
 }
 
 
 // login
 enum LoginType {
-    Login_Facebook = 0; // facebook
+    Facebook = 0; // facebook
 }
 
 message LoginFBReq {
@@ -30,11 +38,15 @@ message LoginReq {
     LoginFBReq fb = 2; // facebook
 }
 
+message LoginRsp {
+    ErrorID ret = 1;
+    uint32 uid = 2;
+}
 
 // game
 enum CardColorSuit {
-    Suit_Diamonds = 0;
-    Suit_Clubs = 1;
-    Suit_Hearts = 2;
-    Suit_Spades = 3;
+    Diamonds = 0; // 方块
+    Clubs = 1; // 梅花
+    Hearts = 2; // 红桃
+    Spades = 3;  // 黑桃
 }
