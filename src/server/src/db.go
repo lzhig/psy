@@ -25,52 +25,106 @@ func (obj *mysqlDB) close() {
 }
 
 // 查找fbid，如果存在更新name
-func (obj *mysqlDB) getUIDFacebook(fbID, name string) int {
-	var uid int
+func (obj *mysqlDB) getUIDFacebook(fbID, name string) (uint32, error) {
+	var uid uint32
 	err := obj.db.QueryRow("select uid from facebook_users where fbid=?", fbID).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
-		return 0
+		return 0, nil
 	case err != nil:
 		logError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID, ", name:", name)
-		return 0
+		return 0, err
 	default:
-		_, err := obj.db.Exec("update facebook_users set name=? where fbid=?;", name, fbID)
+		_, err := obj.db.Exec("update users set name=? where uid=?", name, uid)
 		if err != nil {
-			logWarn("[mysql][getUIDFacebook] update name, error:", err, "fbID:", fbID, ", name:", name)
+			logWarn("[mysql][getUIDFacebook] update name, error:", err, "uid:", uid, ", name:", name)
 		}
 
-		return uid
+		return uid, nil
 	}
 }
 
-func (obj *mysqlDB) createFacebookUser(fbID, name string) int {
-	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,@uid);")
+func (obj *mysqlDB) createFacebookUser(fbID, name string) (uint32, error) {
+	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,@uid)")
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
-		return 0
+		return 0, err
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(fbID, name)
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
-		return 0
+		return 0, err
 	}
 
 	stmt1, err := obj.db.Prepare("select @uid as uid")
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to prepare select, error:", err, "fbID:", fbID, ", name:", name)
-		return 0
+		return 0, err
 	}
 	defer stmt1.Close()
 
-	var uid int
+	var uid uint32
 	err = stmt1.QueryRow().Scan(&uid)
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to scan, error:", err, "fbID:", fbID, ", name:", name)
-		return 0
+		return 0, err
 	}
 
-	return uid
+	return uid, nil
+}
+
+func (obj *mysqlDB) getUserData(uid uint32) (name string, diamonds uint32, err error) {
+	if err := obj.db.QueryRow("select name,diamonds from users where uid=?", uid).Scan(&name, &diamonds); err != nil {
+		logError("[mysql][getUserData] error:", err, ",uid:", uid)
+		return "", 0, err
+	}
+
+	return
+}
+
+func (obj *mysqlDB) saveUserDiamonds(uid, diamonds uint32) error {
+	_, err := obj.db.Exec("update users set diamonds=? where uid=?", diamonds, uid)
+	return err
+}
+
+func (obj *mysqlDB) createRoom(num int, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool) (uint32, error) {
+	result, err := obj.db.Exec("insert into room_records (name,number,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points,create_time,close_time,closed) values(?,?,?,?,0,?,?,?,?,UNIX_TIMESTAMP(NOW()),0,false)",
+		name, num, uid, hands, isShare, minBet, maxBet, creditPoints)
+	if err != nil {
+		return 0, err
+	}
+
+	id, _ := result.LastInsertId()
+	return uint32(id), nil
+}
+
+func (obj *mysqlDB) getRoomNumberUsed() ([]int, error) {
+	rows, err := obj.db.Query("select number from room_records where closed=false")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]int, 0, 1024)
+	for rows.Next() {
+		var num int
+		if err := rows.Scan(&num); err != nil {
+			return nil, err
+		}
+		r = append(r, num)
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) getRoomCreatedCount(uid uint32) (count uint32, err error) {
+	err = obj.db.QueryRow("select count(*) from room_records where owner_uid=? and closed=false", uid).Scan(&count)
+	return
+}
+
+func (obj *mysqlDB) loadRoom(num uint32) (name string, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool, err error) {
+	err = obj.db.QueryRow("select room_id,name,owner_id,hands,played_hands,is_share,min_bet,max_bet,credit_points from room_records where number=? and closed=false",
+		num).Scan(&roomID, &name, &uid, &hands, &playedHands, &isShare, &minBet, &maxBet, &creditPoints)
+	return
 }

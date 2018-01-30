@@ -18,7 +18,8 @@ type protocolHandler struct {
 
 func (obj *protocolHandler) init() {
 	obj.dispatcher = map[msg.MessageID]IDispatchChan{
-		msg.MessageID_Login_Req: loginService,
+		msg.MessageID_Login_Req:      loginService,
+		msg.MessageID_CreateRoom_Req: roomManager,
 	}
 	obj.protoChan = make(chan *ProtocolConnection)
 
@@ -49,12 +50,12 @@ func (obj *protocolHandler) dispatch(p *ProtocolConnection) {
 		select {
 		case d.GetDispatchChan() <- p:
 		default:
-			logWarn("too much login request to dispatch")
-			p.conn.Disconnect()
+			logWarn("[protocolHandler][dispatch] too much requests to dispatch")
+			p.userconn.Disconnect()
 		}
 
 	} else {
-		logError("cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
-		p.conn.Disconnect()
+		logError("[protocolHandler][dispatch] cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
 	}
 }

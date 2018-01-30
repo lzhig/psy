@@ -15,6 +15,13 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+var db = &mysqlDB{}
+var userManager = &UserManager{}
+var loginService = &LoginService{}
+var debug func(a ...interface{}) (int, error)
+var roomManager = &RoomManager{}
+var roomNumberGenerator = &RoomNumberGenerator{}
+
 // App type
 type App struct {
 	base.App
@@ -50,6 +57,9 @@ func (obj *App) Init() error {
 	}
 
 	// init services
+	roomNumberGenerator.init()
+	roomManager.init()
+	userManager.init()
 	loginService.init()
 
 	obj.network = &NetworkEngine{}

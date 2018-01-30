@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"./msg"
 	"github.com/golang/protobuf/proto"
@@ -39,15 +40,24 @@ func (obj *LoginService) loop(ctx context.Context) {
 			return
 
 		case p := <-obj.protoChan:
-			obj.handle(p.conn, p.p)
+			obj.handle(p.userconn, p.p)
 		}
 	}
 }
 
-func (obj *LoginService) handle(conn *rapidnet.Connection, p *msg.Protocol) {
+func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 	rsp := &msg.Protocol{
 		Msgid:    msg.MessageID_Login_Rsp,
 		LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_Invalid_Params},
+	}
+	defer userconn.sendProtocol(rsp)
+
+	errHandle := func(id msg.ErrorID) {
+		rsp.LoginRsp.Ret = id
+		// 5秒后断开连接
+		time.AfterFunc(time.Second*5, func() {
+			userconn.Disconnect()
+		})
 	}
 
 	switch p.LoginReq.Type {
@@ -61,24 +71,44 @@ func (obj *LoginService) handle(conn *rapidnet.Connection, p *msg.Protocol) {
 		}
 
 		//query if the account is exist in db
-		uid := userManager.fbUserExists(req.FbId, req.Name)
+		uid, err := userManager.fbUserExists(req.FbId, req.Name)
+		if err != nil {
+			errHandle(msg.ErrorID_DB_Error)
+			return
+		}
 		if uid == 0 {
 			// if doesn't exist, create account in db
-			uid = userManager.fbUserCreate(req.FbId, req.Name)
+			uid, err = userManager.fbUserCreate(req.FbId, req.Name, userconn)
+			if err != nil {
+				errHandle(msg.ErrorID_DB_Error)
+				return
+			}
 		} else {
-			// load data from db
-			userManager.fbUserLoad(uid)
+			// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
+			if userManager.userIsConnected(uid) {
+				userManager.setUserConnection(uid, userconn)
+			}
+
+			// 如果是用户断线重连
+			if roomID, err := userManager.getRoomIDUserPlaying(uid); err == nil {
+				rsp.LoginRsp.RoomId = roomID
+			}
+
+			// create user
+			if err := userManager.createUser(uid, userconn); err != nil {
+				errHandle(msg.ErrorID_DB_Error)
+				return
+			}
 		}
-		if uid == 0 {
-			rsp.LoginRsp.Ret = msg.ErrorID_DB_Error
-		} else {
-			rsp.LoginRsp.Ret = msg.ErrorID_Ok
-		}
+
+		userconn.uid = uid
+		rsp.LoginRsp.Ret = msg.ErrorID_Ok
 		rsp.LoginRsp.Uid = uint32(uid)
 
 	default:
+		errHandle(msg.ErrorID_Invalid_Params)
+		return
 	}
-	sendProtocol(conn, rsp)
 }
 
 func sendProtocol(conn *rapidnet.Connection, p *msg.Protocol) {

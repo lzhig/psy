@@ -7,18 +7,40 @@ package msg;
 enum MessageID {
     Login_Req = 0; // login request
     Login_Rsp = 1; // login response
+    Kick_Notify = 2; // 被踢，相同账号同时登录
+    CreateRoom_Req = 3; // 创建房间请求
+    CreateRoom_Rsp = 4; // 创建房间响应
+    ConsumeDiamonds_Notify = 5; // 扣除钻石
+    JoinRoom_Req = 6; // 加入房间请求
+    JoinRoom_Rsp = 7; // 加入房间响应
 }
 
 enum ErrorID {
     Ok = 0; // success
     Invalid_Params = 1; // invalid params
     DB_Error = 2; // db error
+    Internal_Error = 3; // 内部错误
+
+    CreateRoom_Invalid_Room_Name = 100; // 非法的房间名称
+    CreateRoom_Invalid_Min_Max_Bet = 101; // 非法的最小最大下注设置
+    CreateRoom_Invalid_Credit_Points = 102; // 非法的credit points
+    CreateRoom_Not_Enough_Diamonds = 103; // 开房钻石不够
+    CreateRoom_Exceed_Limitation_Rooms = 104; // 超出房间总数上限
+
+    JoinRoom_Wrong_Room_Number = 110; // 错误的房号
+
 }
 
 message Protocol {
     MessageID msgid = 1; // msg id
     LoginReq loginReq = 2; // login request
     LoginRsp loginRsp = 3; // login response
+    KickNotify kickNotify = 4; // kick notify
+    CreateRoomReq createRoomReq = 5;
+    CreateRoomRsp createRoomRsp = 6;
+    ConsumeDiamondsNotify consumeDiamondsNotify = 7; // 扣除钻石通知
+    JoinRoomReq joinRoomReq = 8;
+    JoinRoomRsp joinRoomRsp = 9;
 }
 
 
@@ -41,6 +63,41 @@ message LoginReq {
 message LoginRsp {
     ErrorID ret = 1;
     uint32 uid = 2;
+    uint32 room_id = 3; // 如果用户在房间中，返回房间id，否则返回0
+}
+
+// kick
+message KickNotify {
+}
+
+// Create Room
+message CreateRoomReq {
+    string name = 1; // 房间名称
+    uint32 min_bet = 2;
+    uint32 max_bet = 3;
+    uint32 hands = 4; // 0 - 不限
+    uint32 credit_points = 5; // 0 - 不限
+    bool is_share = 6; // 是否为aa制
+}
+
+message CreateRoomRsp {
+    ErrorID ret = 1;
+    uint32 room_id = 2;
+    string room_number = 3; // 房号
+}
+
+// Consume Diamonds Notify
+message ConsumeDiamondsNotify {
+    uint32 diamonds = 1;
+}
+
+// join room
+message JoinRoomReq {
+    string room_number = 1; // 房号
+}
+
+message JoinRoomRsp {
+    ErrorID ret = 1;
 }
 
 // game

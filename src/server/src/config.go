@@ -28,13 +28,21 @@ type mysqlConfig struct {
 	Db       string `json:"db"`
 }
 
+type roomConfig struct {
+	RoomNameLen  int      `json:"room_name_len"`
+	CreditPoints []uint32 `json:"credit_points"`
+	RoomRate     uint32   `json:"room_rate"`
+	CountCreated uint32   `json:"count_created"`
+}
+
 // Config type
 type Config struct {
 	Version string       `json:"version"`
 	Debug   bool         `json:"debug"`
 	CPUNum  int          `json:"cpu_num"`
 	Server  serverConfig `json:"server"`
-	Mysql   mysqlConfig  `json:"mysql:`
+	Mysql   mysqlConfig  `json:"mysql"`
+	Room    roomConfig   `json:"room"`
 }
 
 // Load function

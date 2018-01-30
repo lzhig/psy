@@ -54,7 +54,9 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 						case rapidnet.EventConnected:
 							fmt.Println(event.Conn.RemoteAddr().String(), "connected")
 							ctx, _ := context.WithCancel(ctx)
-							gApp.GoRoutineArgs(ctx, obj.handleConnection, event.Conn)
+							gApp.GoRoutineArgs(ctx, obj.handleConnection, &userConnection{conn: event.Conn})
+
+							// todo 连接成功后，一段时间后需要登录成功，否则将断线
 						case rapidnet.EventDisconnected:
 							fmt.Println(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
 
@@ -70,12 +72,12 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 
 func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interface{}) {
 	defer debug("exit NetworkEngine handleConnection goroutine")
-	conn := args[0].(*rapidnet.Connection)
+	userconn := args[0].(*userConnection)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case data := <-conn.ReceiveDataChan():
+		case data := <-userconn.conn.ReceiveDataChan():
 			if data == nil {
 				return
 			}
@@ -83,18 +85,38 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 
 			p := &msg.Protocol{}
 			if err := proto.Unmarshal(data, p); err != nil {
-				fmt.Println(err)
-				conn.Disconnect()
+				logWarn("failed to unmarshal request. error:", err, ". address:", userconn.conn.RemoteAddr().String())
+				userconn.Disconnect()
 				return
 			}
 
-			obj.protoHandler.getProtoChan() <- &ProtocolConnection{p: p, conn: conn}
+			// 如果没有登录，不处理其他协议
+			if userconn.uid == 0 && p.Msgid != msg.MessageID_Login_Req {
+				logWarn("receive request while no login. address:", userconn.conn.RemoteAddr().String())
+				userconn.Disconnect()
+				return
+			}
+
+			obj.protoHandler.getProtoChan() <- &ProtocolConnection{p: p, userconn: userconn}
 		}
 	}
 }
 
+type userConnection struct {
+	uid  uint32
+	conn *rapidnet.Connection
+}
+
+func (obj *userConnection) Disconnect() {
+	obj.conn.Disconnect()
+}
+
+func (obj *userConnection) sendProtocol(p *msg.Protocol) {
+	sendProtocol(obj.conn, p)
+}
+
 // ProtocolConnection type
 type ProtocolConnection struct {
-	p    *msg.Protocol
-	conn *rapidnet.Connection
+	p        *msg.Protocol
+	userconn *userConnection
 }

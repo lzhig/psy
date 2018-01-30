@@ -28,7 +28,7 @@ func (obj *client) init(addr string, timeout uint32, fbID string) {
 	obj.tcpClient = rapidnet.CreateTCPClient()
 	obj.fbID = fbID
 
-	obj.protoHandler.init()
+	obj.protoHandler.init(obj)
 }
 
 func (obj *client) start() {
@@ -55,6 +55,7 @@ func (obj *client) start() {
 				fmt.Println(event.Conn.RemoteAddr().String(), "connected")
 				go obj.handleConnection(event.Conn)
 				obj.sendLoginReq()
+				//obj.sendCreateRoom()
 			case rapidnet.EventDisconnected:
 				fmt.Println(event.Conn.RemoteAddr().String(), "disconnected.", event.Err)
 				connectFunc()
@@ -82,6 +83,33 @@ func (obj *client) sendLoginReq() {
 					Token: "",
 					Name:  fmt.Sprintf("name_%s", obj.fbID),
 				},
+			},
+		},
+	)
+}
+
+func (obj *client) sendCreateRoom() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_CreateRoom_Req,
+			CreateRoomReq: &msg.CreateRoomReq{
+				Name:         "fight",
+				MinBet:       50,
+				MaxBet:       100,
+				Hands:        10,
+				CreditPoints: 0,
+				IsShare:      false,
+			},
+		},
+	)
+}
+
+func (obj *client) sendJoinRoom() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_JoinRoom_Req,
+			JoinRoomReq: &msg.JoinRoomReq{
+				RoomNumber: "fight",
 			},
 		},
 	)

@@ -13,5 +13,11 @@
         "username":"root",
         "password":"123456",
         "db":"pusoy"
+    },
+    "room":{
+        "room_name_len":64,
+        "credit_points":[0,20,40,60,80,100],
+        "room_rate":2,
+        "count_created":10
     }
 }

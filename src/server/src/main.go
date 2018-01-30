@@ -14,10 +14,6 @@ import (
 )
 
 var gApp = &App{}
-var db = &mysqlDB{}
-var userManager = &UserManager{}
-var loginService = &LoginService{}
-var debug func(a ...interface{}) (int, error)
 
 func main() {
 	defer logFlush()
