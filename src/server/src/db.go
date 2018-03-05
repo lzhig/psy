@@ -44,15 +44,15 @@ func (obj *mysqlDB) getUIDFacebook(fbID, name string) (uint32, error) {
 	}
 }
 
-func (obj *mysqlDB) createFacebookUser(fbID, name string) (uint32, error) {
-	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,@uid)")
+func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint32, error) {
+	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,?,@uid)")
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(fbID, name)
+	_, err = stmt.Exec(fbID, name, diamonds)
 	if err != nil {
 		logError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
@@ -124,7 +124,7 @@ func (obj *mysqlDB) getRoomCreatedCount(uid uint32) (count uint32, err error) {
 }
 
 func (obj *mysqlDB) loadRoom(num uint32) (name string, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool, err error) {
-	err = obj.db.QueryRow("select room_id,name,owner_id,hands,played_hands,is_share,min_bet,max_bet,credit_points from room_records where number=? and closed=false",
+	err = obj.db.QueryRow("select room_id,name,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points from room_records where number=? and closed=false",
 		num).Scan(&roomID, &name, &uid, &hands, &playedHands, &isShare, &minBet, &maxBet, &creditPoints)
 	return
 }

@@ -20,6 +20,9 @@ type client struct {
 	fbID string
 
 	protoHandler protocolHandler
+
+	uid    uint32
+	seatID uint32
 }
 
 func (obj *client) init(addr string, timeout uint32, fbID string) {
@@ -37,7 +40,7 @@ func (obj *client) start() {
 			var err error
 			obj.conn, obj.eventChan, err = obj.tcpClient.Connect(obj.serverAddr, obj.timeout)
 			if err != nil {
-				fmt.Println("connect error:", err)
+				log(obj, "connect error:", err)
 				time.Sleep(time.Second)
 			} else {
 				return
@@ -52,12 +55,12 @@ func (obj *client) start() {
 		case event := <-obj.eventChan:
 			switch event.Type {
 			case rapidnet.EventConnected:
-				fmt.Println(event.Conn.RemoteAddr().String(), "connected")
+				log(obj, event.Conn.RemoteAddr().String(), " connected")
 				go obj.handleConnection(event.Conn)
 				obj.sendLoginReq()
 				//obj.sendCreateRoom()
 			case rapidnet.EventDisconnected:
-				fmt.Println(event.Conn.RemoteAddr().String(), "disconnected.", event.Err)
+				log(obj, event.Conn.RemoteAddr().String(), " disconnected.", event.Err)
 				connectFunc()
 			}
 		}
@@ -67,12 +70,13 @@ func (obj *client) start() {
 func (obj *client) sendProtocol(p *msg.Protocol) {
 	data, err := proto.Marshal(p)
 	if err != nil {
-		fmt.Println("Failed to marshal. p:", p, "error:", err)
+		log(obj, "Failed to marshal. p:", p, "error:", err)
 	}
 	obj.conn.Send(data)
 }
 
 func (obj *client) sendLoginReq() {
+	log(obj, "send login request")
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_Login_Req,
@@ -84,8 +88,7 @@ func (obj *client) sendLoginReq() {
 					Name:  fmt.Sprintf("name_%s", obj.fbID),
 				},
 			},
-		},
-	)
+		})
 }
 
 func (obj *client) sendCreateRoom() {
@@ -100,8 +103,7 @@ func (obj *client) sendCreateRoom() {
 				CreditPoints: 0,
 				IsShare:      false,
 			},
-		},
-	)
+		})
 }
 
 func (obj *client) sendJoinRoom() {
@@ -109,15 +111,53 @@ func (obj *client) sendJoinRoom() {
 		&msg.Protocol{
 			Msgid: msg.MessageID_JoinRoom_Req,
 			JoinRoomReq: &msg.JoinRoomReq{
-				RoomNumber: "fight",
+				RoomNumber: "3054",
 			},
-		},
-	)
+		})
+}
+
+func (obj *client) sendLeaveRoom() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:        msg.MessageID_LeaveRoom_Req,
+			LeaveRoomReq: &msg.LeaveRoomReq{},
+		})
+}
+
+func (obj *client) sendSitDown() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:      msg.MessageID_SitDown_Req,
+			SitDownReq: &msg.SitDownReq{SeatId: obj.seatID},
+		})
+}
+
+func (obj *client) sendBet() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:  msg.MessageID_Bet_Req,
+			BetReq: &msg.BetReq{Chips: 50},
+		})
+}
+
+func (obj *client) sendStandUp() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:      msg.MessageID_StandUp_Req,
+			StandUpReq: &msg.StandUpReq{},
+		})
+}
+
+func (obj *client) sendStartGame() {
+	obj.sendProtocol(&msg.Protocol{
+		Msgid:        msg.MessageID_StartGame_Req,
+		StartGameReq: &msg.StartGameReq{},
+	})
 }
 
 func (obj *client) handleConnection(conn *rapidnet.Connection) {
 	defer func() {
-		fmt.Println("exit handleConnection.")
+		log(obj, "exit handleConnection.")
 	}()
 
 	for {
@@ -127,11 +167,11 @@ func (obj *client) handleConnection(conn *rapidnet.Connection) {
 				return
 			}
 
-			fmt.Println("Recieve data. size:", len(data))
+			//log(obj, "Recieve data. size:", len(data))
 
 			var p msg.Protocol
 			if err := proto.Unmarshal(data, &p); err != nil {
-				fmt.Println(err)
+				log(obj, err)
 				conn.Disconnect()
 				return
 			}
@@ -139,4 +179,8 @@ func (obj *client) handleConnection(conn *rapidnet.Connection) {
 			obj.protoHandler.getProtoChan() <- &p
 		}
 	}
+}
+
+func log(c *client, args ...interface{}) {
+	fmt.Println("fbID:", c.fbID, " ---- ", fmt.Sprint(args...))
 }

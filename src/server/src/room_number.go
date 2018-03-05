@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -16,31 +16,34 @@ type RoomNumberGenerator struct {
 	used  int
 	rand  *rand.Rand
 	len   int
+
+	charValueMap     map[byte]int
+	valueCharMap     map[int]byte
+	charsCount       int
+	roomNumberLength uint
 }
 
-func (obj *RoomNumberGenerator) init() error {
+func (obj *RoomNumberGenerator) init(length uint, chars []byte, used []int) error {
 	obj.rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	obj.chars = make([]byte, 36, 36)
-	for i := 0; i < 10; i++ {
-		obj.chars[i] = '0' + byte(i)
-	}
-	for i := 0; i < 26; i++ {
-		obj.chars[10+i] = 'a' + byte(i)
+	obj.charValueMap = make(map[byte]int)
+	obj.valueCharMap = make(map[int]byte)
+	obj.charsCount = len(chars)
+	obj.roomNumberLength = length
+
+	for i, c := range chars {
+		obj.charValueMap[c] = i
+		obj.valueCharMap[i] = c
 	}
 
-	obj.len = 36 * 36 * 36 * 36
+	obj.len = int(math.Pow(float64(obj.charsCount), float64(length)))
 	obj.pools = make([]int, obj.len)
 	for i := 0; i < obj.len; i++ {
 		obj.pools[i] = i
 	}
 
 	// used
-	usedNum, err := db.getRoomNumberUsed()
-	if err != nil {
-		return err
-	}
-	for _, v := range usedNum {
+	for _, v := range used {
 		obj.used++
 		obj.pools[v], obj.pools[obj.len-obj.used] = obj.pools[obj.len-obj.used], obj.pools[v]
 	}
@@ -77,29 +80,25 @@ func (obj *RoomNumberGenerator) put(code string) {
 }
 
 func (obj *RoomNumberGenerator) decode(num int) string {
-	return fmt.Sprintf("%c%c%c%c",
-		obj.chars[(num/(36*36*36))%36],
-		obj.chars[(num/(36*36))%36],
-		obj.chars[(num/36)%36],
-		obj.chars[num%36])
+	b := make([]byte, obj.roomNumberLength, obj.roomNumberLength)
+	obj._decode(num, 0, b)
+	return string(b)
+}
+
+func (obj *RoomNumberGenerator) _decode(num int, length uint, output []byte) {
+	if length < obj.roomNumberLength-1 {
+		obj._decode(num/obj.charsCount, length+1, output[:obj.roomNumberLength-length-1])
+	}
+	output[obj.roomNumberLength-length-1] = obj.valueCharMap[(num)%(obj.charsCount)]
 }
 
 func (obj *RoomNumberGenerator) encode(code string) int {
 	b := []byte(code)
 	l := len(b)
-	if l > 4 {
-		l = 4
-	}
 	ret := 0
 	for i := 0; i < l; i++ {
 		c := b[i]
-		v := 0
-		if c < 'a' {
-			v = int(c - '0')
-		} else {
-			v = int(c-'a') + 10
-		}
-		ret = ret*36 + v
+		ret = ret*obj.charsCount + obj.charValueMap[c]
 	}
 	return ret
 }

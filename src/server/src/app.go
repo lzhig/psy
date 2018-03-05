@@ -21,6 +21,7 @@ var loginService = &LoginService{}
 var debug func(a ...interface{}) (int, error)
 var roomManager = &RoomManager{}
 var roomNumberGenerator = &RoomNumberGenerator{}
+var dealer = &Dealer{}
 
 // App type
 type App struct {
@@ -57,7 +58,16 @@ func (obj *App) Init() error {
 	}
 
 	// init services
-	roomNumberGenerator.init()
+	usedNum, err := db.getRoomNumberUsed()
+	if err != nil {
+		return err
+	}
+	if err := roomNumberGenerator.init(4, []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}, usedNum); err != nil {
+		return err
+	}
+	//debug(roomNumberGenerator.encode("5428"))
+
+	dealer.init()
 	roomManager.init()
 	userManager.init()
 	loginService.init()
@@ -67,6 +77,8 @@ func (obj *App) Init() error {
 
 	// gm
 	obj.gm = &gameManager{}
+
+	logInfo("init done.")
 
 	return nil
 }

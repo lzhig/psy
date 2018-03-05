@@ -9,8 +9,10 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net/http"
 
-	"github.com/golang/glog"
+	_ "net/http/pprof"
 )
 
 var gApp = &App{}
@@ -21,10 +23,14 @@ func main() {
 
 	flag.Parse()
 
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	logInit()
 
 	if err := gApp.Init(); err != nil {
-		glog.Errorln(err)
+		logError(err)
 		return
 	}
 	gApp.Start()

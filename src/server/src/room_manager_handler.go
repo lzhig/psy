@@ -6,13 +6,13 @@ import (
 	"./msg"
 )
 
-func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protocol) {
-	req := p.CreateRoomReq
+func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
+	req := p.p.CreateRoomReq
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_CreateRoom_Rsp,
-		CreateRoomRsp: &msg.CreateRoomRsp{},
+		CreateRoomRsp: &msg.CreateRoomRsp{Ret: msg.ErrorID_Ok},
 	}
-	defer conn.sendProtocol(rsp)
+	defer p.userconn.sendProtocol(rsp)
 
 	// check name length
 	nameLen := len([]rune(req.Name))
@@ -22,7 +22,7 @@ func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protoco
 	}
 
 	// 最小和最大下注
-	if req.MinBet > req.MaxBet {
+	if req.MaxBet != req.MinBet*gApp.config.Room.MaxBetRate {
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Invalid_Min_Max_Bet
 		return
 	}
@@ -40,8 +40,14 @@ func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protoco
 		return
 	}
 
+	// hands
+	if req.Hands == 0 {
+		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Invalid_Hands
+		return
+	}
+
 	// 创建的房间达到上限
-	count, err := db.getRoomCreatedCount(conn.uid)
+	count, err := db.getRoomCreatedCount(p.userconn.uid)
 	if err != nil {
 		logError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -53,9 +59,9 @@ func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protoco
 	}
 
 	// 扣钻石
-	if req.Hands > 0 &&
-		!req.IsShare &&
-		!userManager.consumeDiamonds(conn.uid, gApp.config.Room.RoomRate*req.Hands, "create room") {
+	if //req.Hands > 0 && // 目前不支持无限局
+	!req.IsShare &&
+		!userManager.consumeDiamonds(p.userconn.uid, gApp.config.Room.RoomRate*req.Hands, "create room") {
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Not_Enough_Diamonds
 		return
 	}
@@ -66,7 +72,7 @@ func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protoco
 		return
 	}
 
-	room, err := obj.createRoom(number, req.Name, conn.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
+	room, err := obj.createRoom(number, req.Name, p.userconn.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
 	if err != nil {
 		logError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -77,13 +83,12 @@ func (obj *RoomManager) handleCreateRoomReq(conn *userConnection, p *msg.Protoco
 	rsp.CreateRoomRsp.RoomNumber = number
 }
 
-func (obj *RoomManager) handleJoinRoomReq(conn *userConnection, p *msg.Protocol) {
-	req := p.JoinRoomReq
+func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
+	req := p.p.JoinRoomReq
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
-		JoinRoomRsp: &msg.JoinRoomRsp{},
+		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
 	}
-	defer conn.sendProtocol(rsp)
 
 	reqRoomNum := roomNumberGenerator.encode(req.RoomNumber)
 	room, ok := obj.roomsNumber[reqRoomNum]
@@ -94,15 +99,33 @@ func (obj *RoomManager) handleJoinRoomReq(conn *userConnection, p *msg.Protocol)
 		switch {
 		case err == sql.ErrNoRows:
 			rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Wrong_Room_Number
+			p.userconn.sendProtocol(rsp)
 			return
 		case err != nil:
 			logError("[RoomManager][joinRoom] failed to find room. number:", req.RoomNumber, ",error:", err)
 			rsp.JoinRoomRsp.Ret = msg.ErrorID_DB_Error
+			p.userconn.sendProtocol(rsp)
 			return
 		default:
 			room = obj.createRoomBase(name, reqRoomNum, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare)
 		}
 
-		room.getEventChan() <- &roomEvent{event: roomEventJoin, args: []interface{}{}}
 	}
+	room.GetProtoChan() <- p
+}
+
+func (obj *RoomManager) handleLeaveRoomReq(p *ProtocolConnection) {
+	rsp := &msg.Protocol{
+		Msgid:        msg.MessageID_LeaveRoom_Rsp,
+		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
+	}
+
+	room := userManager.getUserRoom(p.userconn.uid)
+	if room == nil {
+		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
+		p.userconn.sendProtocol(rsp)
+		return
+	}
+
+	room.GetProtoChan() <- p
 }

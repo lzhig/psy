@@ -72,16 +72,24 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 
 func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interface{}) {
 	defer debug("exit NetworkEngine handleConnection goroutine")
+	if args == nil || len(args) == 0 {
+		logError("[NetworkEngine][handleConnection] invalid args")
+		return
+	}
 	userconn := args[0].(*userConnection)
+	defer func() {
+		if userconn.uid != 0 {
+			userManager.userDisconnect(userconn.uid, userconn)
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case data := <-userconn.conn.ReceiveDataChan():
-			if data == nil {
+		case data, ok := <-userconn.conn.ReceiveDataChan():
+			if !ok {
 				return
 			}
-			fmt.Println("Recieve data. size:", len(data))
 
 			p := &msg.Protocol{}
 			if err := proto.Unmarshal(data, p); err != nil {
@@ -97,14 +105,16 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 				return
 			}
 
-			obj.protoHandler.getProtoChan() <- &ProtocolConnection{p: p, userconn: userconn}
+			obj.protoHandler.handle(&ProtocolConnection{p: p, userconn: userconn})
 		}
 	}
 }
 
 type userConnection struct {
 	uid  uint32
+	name string
 	conn *rapidnet.Connection
+	room *Room
 }
 
 func (obj *userConnection) Disconnect() {

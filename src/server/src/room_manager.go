@@ -12,15 +12,16 @@ type RoomManager struct {
 	rooms       sync.Map
 	roomsNumber map[int]*Room
 	protoChan   chan *ProtocolConnection
-	handlers    map[msg.MessageID]func(*userConnection, *msg.Protocol)
+	handlers    map[msg.MessageID]func(*ProtocolConnection)
 }
 
 func (obj *RoomManager) init() {
 	obj.roomsNumber = make(map[int]*Room)
 	obj.protoChan = make(chan *ProtocolConnection, 128)
-	obj.handlers = map[msg.MessageID]func(*userConnection, *msg.Protocol){
+	obj.handlers = map[msg.MessageID]func(*ProtocolConnection){
 		msg.MessageID_CreateRoom_Req: obj.handleCreateRoomReq,
 		msg.MessageID_JoinRoom_Req:   obj.handleJoinRoomReq,
+		msg.MessageID_LeaveRoom_Req:  obj.handleLeaveRoomReq,
 	}
 	ctx, _ := gApp.CreateCancelContext()
 	gApp.GoRoutine(ctx, obj.loop)
@@ -40,7 +41,7 @@ func (obj *RoomManager) loop(ctx context.Context) {
 
 		case p := <-obj.protoChan:
 			if handler, ok := obj.handlers[p.p.Msgid]; ok {
-				handler(p.userconn, p.p)
+				handler(p)
 			} else {
 				logError("[RoomManager][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 				p.userconn.Disconnect()
@@ -81,8 +82,4 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 	obj.roomsNumber[num] = room
 	room.init()
 	return room
-}
-
-func (obj *RoomManager) notifyUserDisconnect(uid, roomID uint32) {
-
 }

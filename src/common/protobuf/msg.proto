@@ -5,14 +5,68 @@ package msg;
 // protocol
 
 enum MessageID {
-    Login_Req = 0; // login request
-    Login_Rsp = 1; // login response
-    Kick_Notify = 2; // 被踢，相同账号同时登录
-    CreateRoom_Req = 3; // 创建房间请求
-    CreateRoom_Rsp = 4; // 创建房间响应
-    ConsumeDiamonds_Notify = 5; // 扣除钻石
-    JoinRoom_Req = 6; // 加入房间请求
-    JoinRoom_Rsp = 7; // 加入房间响应
+    // login
+    Login_Req = 0;
+    Login_Rsp = 1;
+
+    // 被踢，相同账号同时登录
+    Kick_Notify = 2;
+
+    // 创建房间
+    CreateRoom_Req = 3;
+    CreateRoom_Rsp = 4;
+
+    // 扣除钻石
+    ConsumeDiamonds_Notify = 5; 
+
+    // 加入房间
+    JoinRoom_Req = 6;
+    JoinRoom_Rsp = 7;
+    JoinRoom_Notify = 8;
+
+    // 离开房间
+    LeaveRoom_Req = 9;
+    LeaveRoom_Rsp = 10;
+    LeaveRoom_Notify = 11;
+
+    // 坐下
+    SitDown_Req = 12;
+    SitDown_Rsp = 13;
+    SitDown_Notify = 14;
+
+    // 站起
+    StandUp_Req = 15;
+    StandUp_Rsp = 16;
+    StandUp_Notify = 17;
+
+    // 自动连庄
+    AutoBanker_Req = 21;
+    AutoBanker_Rsp = 22;
+
+    // 开始游戏
+    StartGame_Req = 23;
+    StartGame_Rsp = 24;
+
+    // 下注
+    Bet_Req = 25;
+    Bet_Rsp = 26;
+    Bet_Notify = 27;
+
+    // 组牌
+    Combine_Req = 28;
+    Combine_Rsp = 29;
+    Combine_Notify = 30;
+
+    Result_Notify = 31;
+
+    // 游戏状态
+    GameState_Notify = 32;
+
+    // 断线
+    Disconnect_Notify = 33;
+
+    // 重连
+    Reconnect_Notify = 34;
 }
 
 enum ErrorID {
@@ -26,9 +80,39 @@ enum ErrorID {
     CreateRoom_Invalid_Credit_Points = 102; // 非法的credit points
     CreateRoom_Not_Enough_Diamonds = 103; // 开房钻石不够
     CreateRoom_Exceed_Limitation_Rooms = 104; // 超出房间总数上限
+    CreateRoom_Invalid_Hands = 105; // 非法的hands
 
     JoinRoom_Wrong_Room_Number = 110; // 错误的房号
+    JoinRoom_Full = 111; // 已满
+    JoinRoom_Already_In = 112; // 已经在房间
 
+    LeaveRoom_Not_In = 120; //没有在房间中
+    LeaveRoom_Playing = 121; // 游戏中
+
+    SitDown_Invalid_Seat_Id = 130; // 没有此座位
+    SitDown_Already_Exist_Player = 131; // 已经坐人了
+    SitDown_Already_Sit = 132; // 已经坐在此座位上了
+
+    StandUp_Not_Sit = 140; // 没有坐在座位上
+    StandUp_Cannot_Stand_Up = 141; // 当前状态不能站起
+
+    AutoBanker_Not_Banker = 150; // 只有庄家才能设置
+    AutoBanker_Invalid_State = 151; // 非法的状态
+
+    StartGame_Not_Banker = 160; // 只有庄家才能开始
+    StartGame_Not_Enough_Players = 161; // 人数不够
+    StartGame_Not_Enough_Diamonds = 162; // 钻石不够
+    StartGame_Not_Ready_State = 163; // 不是准备阶段，不能开始游戏
+
+    Bet_Not_Bet_State = 170; // 不是下注阶段，不能下注
+    Bet_Banker_Cannot_Bet = 171; // 庄家不能下注
+    Bet_Invalid_Chips = 172; // 错误的筹码
+    Bet_Not_A_Player_On_Seat = 173; // 没有入座
+    Bet_Already_Bet = 174; // 已经下注
+
+    Combine_Not_Combine_State = 180; // 不是组牌阶段，不能组牌
+    Combine_Not_In_This_Round = 181; // 没有参与本局
+    Combine_Invalid_Request_Data = 182; // 非法请求数据
 }
 
 message Protocol {
@@ -41,6 +125,31 @@ message Protocol {
     ConsumeDiamondsNotify consumeDiamondsNotify = 7; // 扣除钻石通知
     JoinRoomReq joinRoomReq = 8;
     JoinRoomRsp joinRoomRsp = 9;
+    JoinRoomNotify joinRoomNotify = 10;
+    LeaveRoomReq leaveRoomReq = 11;
+    LeaveRoomRsp leaveRoomRsp = 12;
+    LeaveRoomNotify leaveRoomNotify = 13;
+    SitDownReq sitDownReq = 14;
+    SitDownRsp sitDownRsp = 15;
+    SitDownNotify sitDownNotify = 16;
+    StandUpReq standUpReq = 17;
+    StandUpRsp standUpRsp = 18;
+    StandUpNotify standUpNotify = 19;
+
+    AutoBankerReq autoBankerReq = 23;
+    AutoBankerRsp autoBankerRsp = 24;
+    StartGameReq startGameReq = 25;
+    StartGameRsp startGameRsp = 26;
+    BetReq betReq = 27;
+    BetRsp betRsp = 28;
+    BetNotify betNotify = 29;
+    CombineReq combineReq = 30;
+    CombineRsp combineRsp = 31;
+    CombineNotify combineNotify = 32;
+    //ResultNotify resultNotify = 33;
+    GameStateNotify gameStateNotify = 34;
+    DisconnectNotify disconnectNotify = 35;
+    ReconnectNotify reconnectNotify = 36;
 }
 
 
@@ -70,6 +179,17 @@ message LoginRsp {
 message KickNotify {
 }
 
+
+// disconnect 
+message DisconnectNotify {
+    uint32 uid = 1;
+}
+
+// reconnect
+message ReconnectNotify {
+    uint32 uid = 1;
+}
+
 // Create Room
 message CreateRoomReq {
     string name = 1; // 房间名称
@@ -92,18 +212,183 @@ message ConsumeDiamondsNotify {
 }
 
 // join room
+message Player {
+    uint32 uid = 1; // uid
+    string name = 2; // 名字
+    int32 seat_id = 3; // 座位
+}
+
+
+message Room {
+    uint32 room_id = 1; // room id
+    string number = 2; // room number
+    string name = 3; // room name
+    uint32 min_bet = 4; // min bet
+    uint32 max_bet = 5; // max bet
+    uint32 hands = 6; // 总局数
+    uint32 played_hands = 7; // 已经进行的局数
+    uint32 credit_points = 8; // credit points
+    bool is_share = 9; // aa制
+    repeated Player players = 10; // all players
+    GameState state = 11; // 游戏状态
+}
+
 message JoinRoomReq {
     string room_number = 1; // 房号
 }
 
 message JoinRoomRsp {
     ErrorID ret = 1;
+    Room room = 2; // 房间
+}
+
+message JoinRoomNotify {
+    uint32 uid = 1;
+    string name = 2;
+}
+
+// leave room
+message LeaveRoomReq {
+}
+
+message LeaveRoomRsp {
+    ErrorID ret = 1;
+}
+
+message LeaveRoomNotify {
+    uint32 uid = 1;
+}
+
+// sit down
+message SitDownReq {
+    uint32 seat_id = 01; // 座位号
+}
+
+message SitDownRsp {
+    ErrorID ret = 1;
+}
+
+enum SitDownType {
+    Sit = 0; // 坐下
+    Swap = 1; // 换座
+}
+
+message SitDownNotify {
+    SitDownType type = 1;
+    uint32 uid = 2;
+    uint32 seat_id = 3;
+    int32 old_seat_id = 4; // 如果是swap，则表示之前的座位
+}
+
+// stand up
+message StandUpReq {
+}
+
+message StandUpRsp {
+    ErrorID ret = 1;
+}
+
+message StandUpNotify {
+    uint32 uid = 1;
+    uint32 seat_id = 2;
+}
+
+// auto banker
+message AutoBankerReq {
+    bool auto_banker = 1; // true为自动连庄, false为取消
+}
+
+message AutoBankerRsp {
+    ErrorID ret = 1;
+}
+
+// start game
+message StartGameReq {
+}
+
+message StartGameRsp {
+    ErrorID ret = 1;
+}
+
+// bet
+message BetReq {
+    uint32 chips = 1; // 筹码
+}
+
+message BetRsp {
+    ErrorID ret = 1;
+}
+
+message BetNotify {
+    uint32 seat_id = 1;
+    uint32 chips = 2;
+}
+
+// combine
+message CardGroup {
+    repeated uint32 cards = 1;
+}
+message CombineReq {
+    repeated CardGroup card_groups = 1;
+    bool autowin = 2;
+}
+
+message CombineRsp {
+    ErrorID ret = 1;
+}
+
+message CombineNotify {
+    uint32 seat_id = 1; // 完成组牌的座位号
+}
+
+// result
+message SeatResult {
+    uint32 seat_id = 1; // 座位号
+    repeated CardGroup card_groups = 2; // 牌组
+    bool autowin = 3; //
+    repeated CardRank ranks = 4; // 牌型
+    repeated int32 scores = 5; // 牌组得分
+    int32 total_score = 6; // 得分总和，如果是autowin赢或者输, score字段为空
+    int32 win = 7; // 输赢积分
+    uint32 bet = 8; // 下注
+}
+
+
+// game state notify
+enum GameState {
+    Ready = 0; // 准备阶段
+    Bet = 1; // 下注
+    Confirm_Bet = 2; // 确认下注
+    Deal = 3; // 发牌
+    Combine = 4; // 组牌
+    Show = 5; // show 牌
+    Result = 6; // 结算
+}
+
+message GameStateNotify {
+    GameState state = 1;    // 状态
+    uint32 countdown = 2; // 状态时间 ms, 0-表示无倒计时
+    repeated uint32 deal_cards = 3; // 发牌阶段
+    repeated SeatResult result = 4; // 结算结果
 }
 
 // game
+enum CardRank {
+    High_Card = 0; // 高牌
+    One_Pair = 1; // 一对
+    Two_Pair = 2; // 两对
+    Three_Of_A_Kind = 3; // 三条
+    Straight = 4; // 顺子
+    Flush = 5; // 同花
+    Full_House = 6; // 葫芦
+    Four_Of_A_Kind = 7; // 四条
+    Straight_Flush = 8; // 同花顺
+}
+
 enum CardColorSuit {
-    Diamonds = 0; // 方块
-    Clubs = 1; // 梅花
+    Clubs = 0; // 梅花
+    Spades = 1;  // 黑桃
     Hearts = 2; // 红桃
-    Spades = 3;  // 黑桃
+    Diamonds = 3; // 方块
+    Count = 4;
 }

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"../msg"
 )
 
@@ -18,6 +16,10 @@ func (obj *protocolHandler) init(c *client) {
 		msg.MessageID_Login_Rsp:      obj.handleLogin,
 		msg.MessageID_CreateRoom_Rsp: obj.handleCreateRoom,
 		msg.MessageID_JoinRoom_Rsp:   obj.handleJoinRoom,
+		msg.MessageID_SitDown_Rsp:    obj.handleSitDown,
+		msg.MessageID_StandUp_Rsp:    obj.handleStandUp,
+		msg.MessageID_LeaveRoom_Rsp:  obj.handleLeaveRoom,
+		msg.MessageID_Bet_Rsp:        obj.handleBet,
 	}
 	obj.protoChan = make(chan *msg.Protocol)
 
@@ -39,23 +41,44 @@ func (obj *protocolHandler) loop() {
 
 func (obj *protocolHandler) handle(p *msg.Protocol) {
 	if f, ok := obj.handler[p.Msgid]; ok {
-		fmt.Println("received msgid:", msg.MessageID_name[int32(p.Msgid)])
+		log(obj.c, "received ", p)
 		f(p)
 	} else {
-		fmt.Println("cannot find handler for msgid:", msg.MessageID_name[int32(p.Msgid)])
+		log(obj.c, "cannot find handler for msg:", p)
 	}
 }
 
 func (obj *protocolHandler) handleLogin(p *msg.Protocol) {
-	fmt.Println(p)
 	//obj.c.sendCreateRoom()
 	obj.c.sendJoinRoom()
 }
 
 func (obj *protocolHandler) handleCreateRoom(p *msg.Protocol) {
-	fmt.Println(p)
 }
 
 func (obj *protocolHandler) handleJoinRoom(p *msg.Protocol) {
-	fmt.Println(p)
+	obj.c.sendSitDown()
+}
+
+func (obj *protocolHandler) handleSitDown(p *msg.Protocol) {
+	if p.SitDownRsp.Ret != msg.ErrorID_Ok && p.SitDownRsp.Ret != msg.ErrorID_SitDown_Already_Sit {
+		obj.c.seatID++
+		if obj.c.seatID >= 5 {
+			obj.c.seatID = 0
+		}
+		obj.c.sendSitDown()
+		return
+	}
+	//obj.c.sendStandUp()
+	obj.c.sendBet()
+}
+
+func (obj *protocolHandler) handleStandUp(p *msg.Protocol) {
+	obj.c.sendLeaveRoom()
+}
+
+func (obj *protocolHandler) handleLeaveRoom(p *msg.Protocol) {
+}
+
+func (obj *protocolHandler) handleBet(p *msg.Protocol) {
 }
