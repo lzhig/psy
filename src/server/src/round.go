@@ -196,7 +196,26 @@ func (obj *Round) isJoinPlayer(seatID int32) bool {
 }
 
 func (obj *Round) calculateResult() {
+	// 检查每个参与本局的玩家是否有提交组牌
+	for seatID := range obj.players {
+		if _, ok := obj.result[seatID]; !ok {
+			obj.result[seatID] = &msg.SeatResult{
+				SeatId: seatID,
+				CardGroups: []*msg.CardGroup{
+					&msg.CardGroup{Cards: make([]uint32, 0, 3)},
+					&msg.CardGroup{Cards: make([]uint32, 0, 5)},
+					&msg.CardGroup{Cards: make([]uint32, 0, 5)},
+				},
+				Autowin: false,
+			}
+			// leftCards
+			obj.leftCards[seatID] = make([]uint32, len(obj.handCards[seatID]))
+			copy(obj.leftCards[seatID], obj.handCards[seatID])
+		}
+	}
+
 	// 计算牌型
+	// todo: 当前没有检测牌型乌龙
 	var bankerResult *msg.SeatResult
 	for _, result := range obj.result {
 		if result.SeatId == 0 {
@@ -208,7 +227,9 @@ func (obj *Round) calculateResult() {
 
 		result.Ranks = make([]msg.CardRank, 3)
 		leftCards := obj.leftCards[result.SeatId]
-		for ndx, group := range result.CardGroups {
+		for ndx := 2; ndx >= 0; ndx-- {
+			group := result.CardGroups[ndx]
+
 			// 自动组牌
 			autoCombine := false
 			num := 3
@@ -235,6 +256,7 @@ func (obj *Round) calculateResult() {
 						}
 					}
 					leftCards = leftCards[pos:]
+					group.Cards = formCards
 				}
 				result.Ranks[ndx] = rank
 				continue

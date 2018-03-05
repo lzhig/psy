@@ -207,6 +207,13 @@ func Test_findCardRank(t *testing.T) {
 			want1: msg.CardRank_One_Pair,
 			want2: true,
 		},
+		{
+			name:  "test",
+			args:  args{cards: []uint32{0, 18, 2, 12, 41, 48, 20, 1}, form: []uint32{}, n: 5},
+			want:  []uint32{12, 48, 20, 41, 2},
+			want1: msg.CardRank_One_Pair,
+			want2: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

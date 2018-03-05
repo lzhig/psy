@@ -10,13 +10,16 @@ const (
 	Card_A_Value = 12
 )
 
+// todo:
+// 1. 现在顺子牌型中，A 2 3 4 5可能会被选中，后面需要先检测10 J Q K A，然后再检查A 2 3 4 5
+
 // Card type
 type Card struct {
 	value uint32
 	color msg.CardColorSuit
 }
 
-type matchFunc func([]Card, []int, bool) bool
+type matchFunc func([]Card, []int, int, bool) bool
 
 func calculateCardRank(cards []uint32) msg.CardRank {
 	num := len(cards)
@@ -248,7 +251,7 @@ func findCardRankWithMatch(cards []Card, value []int, f []Card, fv []int, n int,
 	}
 
 	// 检查f中是否符合条件
-	if !match(f, fv, needSort) {
+	if !match(f, fv, n, needSort) {
 		return nil, nil, false
 	}
 
@@ -266,7 +269,7 @@ func findRecursive(cards []Card, value []int, f []Card, fv []int, n int, match m
 		fv = append([]int{}, fv...)
 		fv = append(fv, num)
 
-		if !match(f, fv, needSort) {
+		if !match(f, fv, n, needSort) {
 			f = fBak
 			fv = fvBak
 			ndx++
@@ -287,7 +290,11 @@ func findRecursive(cards []Card, value []int, f []Card, fv []int, n int, match m
 	return nil, nil, false
 }
 
-func matchStraightFlush(cards []Card, value []int, needSort bool) bool {
+func matchStraightFlush(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -316,7 +323,11 @@ func matchStraightFlush(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchFourOfAKind(cards []Card, value []int, needSort bool) bool {
+func matchFourOfAKind(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -346,7 +357,11 @@ func matchFourOfAKind(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchFullHouse(cards []Card, value []int, needSort bool) bool {
+func matchFullHouse(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -371,7 +386,11 @@ func matchFullHouse(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchFlush(cards []Card, value []int, needSort bool) bool {
+func matchFlush(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -384,7 +403,11 @@ func matchFlush(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchStraight(cards []Card, value []int, needSort bool) bool {
+func matchStraight(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -410,7 +433,7 @@ func matchStraight(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchThreeOfAKind(cards []Card, value []int, needSort bool) bool {
+func matchThreeOfAKind(cards []Card, value []int, n int, needSort bool) bool {
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -433,14 +456,17 @@ func matchThreeOfAKind(cards []Card, value []int, needSort bool) bool {
 		}
 	}
 
-	if l == 5 {
+	if l == n {
 		return false
 	}
 
 	return true
 }
 
-func matchTwoPair(cards []Card, value []int, needSort bool) bool {
+func matchTwoPair(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -474,7 +500,7 @@ func matchTwoPair(cards []Card, value []int, needSort bool) bool {
 	return true
 }
 
-func matchOnePair(cards []Card, value []int, needSort bool) bool {
+func matchOnePair(cards []Card, value []int, n int, needSort bool) bool {
 	if needSort {
 		sortCards(cards, value)
 	}
@@ -496,6 +522,12 @@ func matchOnePair(cards []Card, value []int, needSort bool) bool {
 				}
 			}
 		}
+	}
+	if l == n {
+		if (n == 3 || n == 5) && sametime == 1 {
+			return true
+		}
+		return false
 	}
 
 	return true
