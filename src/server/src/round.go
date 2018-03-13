@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"./msg"
@@ -9,13 +8,14 @@ import (
 
 // Round 表示一局
 type Round struct {
-	room      *Room
-	state     msg.GameState              // 游戏状态
-	players   map[uint32]*RoomPlayer     // 本局参与的玩家
-	handCards map[uint32][]uint32        // 各个座位的发牌
-	leftCards map[uint32][]uint32        // 各个座位组牌剩下的牌
-	betChips  map[uint32]uint32          // 各个座位的下注
-	result    map[uint32]*msg.SeatResult // 各个座位的结算
+	room           *Room
+	state          msg.GameState              // 游戏状态
+	stateBeginTime time.Time                  // 状态开始时间
+	players        map[uint32]*RoomPlayer     // 本局参与的玩家
+	handCards      map[uint32][]uint32        // 各个座位的发牌
+	leftCards      map[uint32][]uint32        // 各个座位组牌剩下的牌
+	betChips       map[uint32]uint32          // 各个座位的下注
+	result         map[uint32]*msg.SeatResult // 各个座位的结算
 
 	stateTimeout *time.Timer
 }
@@ -24,16 +24,18 @@ type Round struct {
 func (obj *Round) Init(room *Room) {
 	obj.room = room
 	obj.state = msg.GameState_Ready
+
+	obj.Begin()
+}
+
+// Begin 一局开始
+func (obj *Round) Begin() {
+	obj.room.playedHands++
 	obj.players = make(map[uint32]*RoomPlayer)
 	obj.betChips = make(map[uint32]uint32)
 	obj.handCards = make(map[uint32][]uint32)
 	obj.leftCards = make(map[uint32][]uint32)
 	obj.result = make(map[uint32]*msg.SeatResult)
-}
-
-// Begin 一局开始
-func (obj *Round) Begin() {
-
 }
 
 func (obj *Round) bet(seatID uint32, chips uint32) bool {
@@ -46,7 +48,8 @@ func (obj *Round) bet(seatID uint32, chips uint32) bool {
 }
 
 func (obj *Round) isAllBet() bool {
-	return len(obj.betChips) == int(gApp.config.Room.MaxTablePlayers)
+	//return len(obj.betChips) == int(gApp.config.Room.MaxTablePlayers)
+	return len(obj.betChips) == len(obj.room.tablePlayers)-1
 }
 
 func (obj *Round) isAllCombine() bool {
@@ -74,19 +77,24 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 			obj.switchGameState(msg.GameState_Result)
 		case msg.GameState_Result:
 			// 如果是自动连庄
-			if obj.room.autoBanker {
-				obj.switchGameState(msg.GameState_Bet)
+			if obj.room.playedHands < obj.room.hands {
+				if obj.room.autoBanker {
+					obj.switchGameState(msg.GameState_Bet)
+				} else {
+					// 庄家站起
+					obj.switchGameState(msg.GameState_Ready)
+				}
 			} else {
-				// 庄家站起
-				obj.switchGameState(msg.GameState_Ready)
+				// todo: 如果局数已满
 			}
 		}
 	}
 }
 
 func (obj *Round) switchGameState(state msg.GameState) {
-	fmt.Println("switchGameState", state)
+	logInfo("switchGameState", state)
 	obj.state = state
+	obj.stateBeginTime = time.Now()
 	notify := &msg.Protocol{
 		Msgid: msg.MessageID_GameState_Notify,
 		GameStateNotify: &msg.GameStateNotify{
@@ -94,6 +102,12 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			Countdown: gApp.config.Room.StatesCountdown[state],
 		}}
 	switch state {
+	case msg.GameState_Ready:
+		obj.Begin()
+		obj.room.notifyAll(notify)
+	case msg.GameState_Bet, msg.GameState_Combine:
+		obj.room.notifyAll(notify)
+
 	case msg.GameState_Confirm_Bet:
 		// 确定参与玩家
 		for _, player := range obj.room.tablePlayers {
@@ -125,12 +139,9 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			} else {
 				notify.GameStateNotify.DealCards = nil
 			}
-			fmt.Println(player, notify)
-			sendProtocol(player.conn.conn, notify)
+			player.sendProtocol(notify)
 		}
 
-	case msg.GameState_Bet, msg.GameState_Combine:
-		obj.room.notifyAll(notify)
 	case msg.GameState_Show:
 		// 结算
 		obj.calculateResult()
@@ -141,7 +152,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			notify.GameStateNotify.Result[i] = v
 			i++
 		}
-		fmt.Println(notify)
+		logInfo(notify)
 		obj.room.notifyAll(notify)
 	case msg.GameState_Result:
 		obj.room.notifyAll(notify)
@@ -159,12 +170,15 @@ func (obj *Round) switchGameState(state msg.GameState) {
 }
 
 func (obj *Round) deal() {
+	logInfo("[Round][deal]")
 	cards := dealer.deal()
 
 	obj.handCards[0] = cards[0:gApp.config.Room.DealCardsNum]
+	logInfo("seat 0:", obj.handCards[0])
 	i := uint32(1)
 	for seatID := range obj.betChips {
 		obj.handCards[seatID] = cards[i*gApp.config.Room.DealCardsNum : (i+1)*gApp.config.Room.DealCardsNum]
+		logInfo("seat ", seatID, ":", obj.handCards[seatID])
 		i++
 	}
 }
@@ -221,9 +235,9 @@ func (obj *Round) calculateResult() {
 		if result.SeatId == 0 {
 			bankerResult = result
 		}
-		if result.Autowin {
-			continue
-		}
+		// if result.Autowin {
+		// 	continue
+		// }
 
 		result.Ranks = make([]msg.CardRank, 3)
 		leftCards := obj.leftCards[result.SeatId]
@@ -241,6 +255,7 @@ func (obj *Round) calculateResult() {
 			}
 			if autoCombine {
 				formCards, rank, ok := findCardRank(leftCards, group.Cards, num)
+				logInfo(formCards, rank, ok)
 				if !ok {
 					logError("[Round][calculateResult]failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
 					rank = msg.CardRank_High_Card
@@ -266,6 +281,7 @@ func (obj *Round) calculateResult() {
 		}
 	}
 
+	banker_win := int32(0)
 	// 计算得分, 分别与庄家比较
 	for _, result := range obj.result {
 		if result.SeatId == 0 {
@@ -289,7 +305,9 @@ func (obj *Round) calculateResult() {
 		// 计算输赢积分
 		result.Bet = obj.betChips[result.SeatId]
 		result.Win = result.TotalScore * int32(obj.betChips[result.SeatId])
+		banker_win += result.Win
 	}
+	obj.result[0].Win = -banker_win
 }
 
 func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
@@ -306,8 +324,17 @@ func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
 			num := 3
 			if i != 0 {
 				num = 5
+
+				// 判断A 2 3 4 5
+				if a.Ranks[i] == msg.CardRank_Straight_Flush || a.Ranks[i] == msg.CardRank_Straight {
+					if a.CardGroups[i].Cards[0] == Card_A_Value && a.CardGroups[i].Cards[4] == Card_2_Value {
+
+					}
+				}
 			}
+			logInfo(a.CardGroups, b.CardGroups)
 			for j := 0; j < num; j++ {
+				logInfo(a.CardGroups[i], b.CardGroups[i])
 				v1 := a.CardGroups[i].Cards[j] % 13
 				v2 := b.CardGroups[i].Cards[j] % 13
 				if v1 > v2 {

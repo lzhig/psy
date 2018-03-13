@@ -8,10 +8,8 @@ import (
 
 const (
 	Card_A_Value = 12
+	Card_2_Value = 0
 )
-
-// todo:
-// 1. 现在顺子牌型中，A 2 3 4 5可能会被选中，后面需要先检测10 J Q K A，然后再检查A 2 3 4 5
 
 // Card type
 type Card struct {
@@ -224,12 +222,15 @@ func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 		sort = false
 	}
 
-	retFunc := func(cards []Card, value []int) []uint32 {
-		r := make([]uint32, len(value))
+	retFunc := func(cards []Card, value []int, n int) []uint32 {
+		r := make([]uint32, n)
 		i := 0
 		for _, v := range value {
 			r[i] = cards[v].value + uint32(cards[v].color)*13
 			i++
+			if i == n {
+				break
+			}
 		}
 
 		return r
@@ -238,11 +239,11 @@ func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 	for _, v := range h {
 		if r1, r2, r3 := findCardRankWithMatch(c, value, f, fv, n, v.match, sort); r3 {
 			// sortCards(r1, r2)
-			return retFunc(r1, r2), v.rank, true
+			return retFunc(r1, r2, n), v.rank, true
 		}
 	}
 
-	return retFunc(c, value), msg.CardRank_High_Card, true
+	return retFunc(c, value, n), msg.CardRank_High_Card, true
 }
 
 func findCardRankWithMatch(cards []Card, value []int, f []Card, fv []int, n int, match matchFunc, needSort bool) ([]Card, []int, bool) {
@@ -310,7 +311,7 @@ func matchStraightFlush(cards []Card, value []int, n int, needSort bool) bool {
 	}
 	// 如果为A，判断A 2 3 4 5的情况
 	if l > 1 && cards[value[0]].value == Card_A_Value {
-		if cards[value[l-1]].value != uint32(5-l) {
+		if cards[value[l-1]].value != uint32(5-l) && cards[value[l-1]].value != uint32(13-l) {
 			return false
 		}
 		return true

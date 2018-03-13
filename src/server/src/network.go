@@ -10,7 +10,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"./msg"
 
@@ -52,16 +51,16 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 					case event := <-obj.eventChan:
 						switch event.Type {
 						case rapidnet.EventConnected:
-							fmt.Println(event.Conn.RemoteAddr().String(), "connected")
+							logInfo(event.Conn.RemoteAddr().String(), "connected")
 							ctx, _ := context.WithCancel(ctx)
 							gApp.GoRoutineArgs(ctx, obj.handleConnection, &userConnection{conn: event.Conn})
 
 							// todo 连接成功后，一段时间后需要登录成功，否则将断线
 						case rapidnet.EventDisconnected:
-							fmt.Println(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
+							logInfo(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
 
 						case rapidnet.EventSendFailed:
-							fmt.Println(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
+							logInfo(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
 						}
 					}
 				}

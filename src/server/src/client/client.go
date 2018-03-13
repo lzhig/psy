@@ -21,15 +21,18 @@ type client struct {
 
 	protoHandler protocolHandler
 
-	uid    uint32
-	seatID uint32
+	uid        uint32
+	seatID     uint32
+	cards      []uint32
+	roomNumber uint32
 }
 
-func (obj *client) init(addr string, timeout uint32, fbID string) {
+func (obj *client) init(addr string, timeout uint32, fbID string, roomNumber uint32) {
 	obj.serverAddr = addr
 	obj.timeout = timeout
 	obj.tcpClient = rapidnet.CreateTCPClient()
 	obj.fbID = fbID
+	obj.roomNumber = roomNumber
 
 	obj.protoHandler.init(obj)
 }
@@ -107,11 +110,12 @@ func (obj *client) sendCreateRoom() {
 }
 
 func (obj *client) sendJoinRoom() {
+	log(obj, "join room: %d", obj.roomNumber)
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_JoinRoom_Req,
 			JoinRoomReq: &msg.JoinRoomReq{
-				RoomNumber: "3054",
+				RoomNumber: fmt.Sprintf("%d", obj.roomNumber),
 			},
 		})
 }
@@ -137,6 +141,17 @@ func (obj *client) sendBet() {
 		&msg.Protocol{
 			Msgid:  msg.MessageID_Bet_Req,
 			BetReq: &msg.BetReq{Chips: 50},
+		})
+}
+
+func (obj *client) sendCombine() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_Combine_Req,
+			CombineReq: &msg.CombineReq{
+				Autowin:    false,
+				CardGroups: []*msg.CardGroup{&msg.CardGroup{Cards: []uint32{}}, &msg.CardGroup{Cards: []uint32{}}, &msg.CardGroup{Cards: []uint32{}}},
+			},
 		})
 }
 

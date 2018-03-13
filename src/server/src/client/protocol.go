@@ -13,13 +13,14 @@ type protocolHandler struct {
 func (obj *protocolHandler) init(c *client) {
 	obj.c = c
 	obj.handler = map[msg.MessageID]func(*msg.Protocol){
-		msg.MessageID_Login_Rsp:      obj.handleLogin,
-		msg.MessageID_CreateRoom_Rsp: obj.handleCreateRoom,
-		msg.MessageID_JoinRoom_Rsp:   obj.handleJoinRoom,
-		msg.MessageID_SitDown_Rsp:    obj.handleSitDown,
-		msg.MessageID_StandUp_Rsp:    obj.handleStandUp,
-		msg.MessageID_LeaveRoom_Rsp:  obj.handleLeaveRoom,
-		msg.MessageID_Bet_Rsp:        obj.handleBet,
+		msg.MessageID_Login_Rsp:        obj.handleLogin,
+		msg.MessageID_CreateRoom_Rsp:   obj.handleCreateRoom,
+		msg.MessageID_JoinRoom_Rsp:     obj.handleJoinRoom,
+		msg.MessageID_SitDown_Rsp:      obj.handleSitDown,
+		msg.MessageID_StandUp_Rsp:      obj.handleStandUp,
+		msg.MessageID_LeaveRoom_Rsp:    obj.handleLeaveRoom,
+		msg.MessageID_Bet_Rsp:          obj.handleBet,
+		msg.MessageID_GameState_Notify: obj.handleGameStateNotify,
 	}
 	obj.protoChan = make(chan *msg.Protocol)
 
@@ -81,4 +82,21 @@ func (obj *protocolHandler) handleLeaveRoom(p *msg.Protocol) {
 }
 
 func (obj *protocolHandler) handleBet(p *msg.Protocol) {
+}
+
+func (obj *protocolHandler) handleGameStateNotify(p *msg.Protocol) {
+	switch p.GameStateNotify.State {
+	case msg.GameState_Ready:
+		if obj.c.seatID == 0 {
+			obj.c.sendStartGame()
+		}
+	case msg.GameState_Bet:
+		if obj.c.seatID != 0 {
+			obj.c.sendBet()
+		}
+	case msg.GameState_Deal:
+		obj.c.cards = p.GameStateNotify.DealCards
+	case msg.GameState_Combine:
+		obj.c.sendCombine()
+	}
 }

@@ -145,6 +145,13 @@ func Test_findCardRank(t *testing.T) {
 			want2: true,
 		},
 		{
+			name:  "straight_flush_TJQKA",
+			args:  args{cards: []uint32{1, 2, 3, 0, 9, 8, 10, 11, 12}, form: []uint32{}, n: 5},
+			want:  []uint32{12, 11, 10, 9, 8},
+			want1: msg.CardRank_Straight_Flush,
+			want2: true,
+		},
+		{
 			name:  "four_of_a_kind",
 			args:  args{cards: []uint32{2, 5, 45, 6, 7, 8, 19, 20, 21, 22, 32}, form: []uint32{}, n: 5},
 			want:  []uint32{22, 45, 32, 19, 6},
@@ -209,9 +216,9 @@ func Test_findCardRank(t *testing.T) {
 		},
 		{
 			name:  "test",
-			args:  args{cards: []uint32{0, 18, 2, 12, 41, 48, 20, 1}, form: []uint32{}, n: 5},
-			want:  []uint32{12, 48, 20, 41, 2},
-			want1: msg.CardRank_One_Pair,
+			args:  args{cards: []uint32{23, 34, 7, 32, 42, 41, 14, 0}, form: []uint32{}, n: 5},
+			want:  []uint32{23, 34, 7, 32, 42},
+			want1: msg.CardRank_High_Card,
 			want2: true,
 		},
 	}

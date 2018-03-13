@@ -220,7 +220,7 @@ func (obj *UserManager) enterRoom(uid uint32, room *Room) {
 		defer user.Unlock()
 
 		if user.room != nil {
-			panic("user.room should be nil when a user enters room")
+			logError("user.room should be nil when a user enters room")
 		}
 		user.room = room
 	}

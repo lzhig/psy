@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"time"
 
 	"./msg"
 )
@@ -33,6 +34,12 @@ type RoomPlayer struct {
 	name   string
 	conn   *userConnection
 	seatID int32 // -1 没有入座
+}
+
+func (obj *RoomPlayer) sendProtocol(p *msg.Protocol) {
+	if obj.conn != nil {
+		sendProtocol(obj.conn.conn, p)
+	}
 }
 
 // Room type
@@ -178,15 +185,13 @@ func (obj *Room) notifyOthers(userconn *userConnection, p *msg.Protocol) {
 			continue
 		}
 
-		player.conn.sendProtocol(p)
+		player.sendProtocol(p)
 	}
 }
 
 func (obj *Room) notifyAll(p *msg.Protocol) {
 	for _, player := range obj.players {
-		if player.conn != nil {
-			player.conn.sendProtocol(p)
-		}
+		player.sendProtocol(p)
 	}
 }
 
@@ -198,9 +203,11 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 	defer p.userconn.sendProtocol(rsp)
 
 	isNewPlayer := true
+	seatID := int32(0)
 	if player, ok := obj.players[p.userconn.uid]; ok {
 		isNewPlayer = false
 		player.conn = p.userconn
+		seatID = player.seatID
 		// 通知其他玩家：此玩家重连成功
 		obj.notifyOthers(
 			p.userconn,
@@ -223,6 +230,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 			conn:   p.userconn,
 			seatID: -1,
 		}
+		seatID = -1
 
 		obj.players[p.userconn.uid] = player
 		userManager.enterRoom(p.userconn.uid, obj)
@@ -240,14 +248,41 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		IsShare:      obj.isShare,
 		Players:      make([]*msg.Player, len(obj.players)),
 	}
+	//cards
+	if seatID >= 0 {
+		if cards, ok := obj.round.handCards[uint32(seatID)]; ok {
+			rsp.JoinRoomRsp.Room.Cards = cards
+		}
+	}
+
+	//countdown
+	if gApp.config.Room.StatesCountdown[obj.round.state] == 0 {
+		rsp.JoinRoomRsp.Room.Countdown = -1
+	} else {
+		rsp.JoinRoomRsp.Room.Countdown = int32(gApp.config.Room.StatesCountdown[obj.round.state]) - int32(time.Now().Sub(obj.round.stateBeginTime).Seconds()*1000)
+	}
+	//result
+	if len(obj.round.result) > 0 {
+		rsp.JoinRoomRsp.Room.Result = make([]*msg.SeatResult, len(obj.round.result))
+		i := 0
+		for _, v := range obj.round.result {
+			rsp.JoinRoomRsp.Room.Result[i] = v
+			i++
+		}
+	}
 
 	i := 0
 	for _, player := range obj.players {
-		rsp.JoinRoomRsp.Room.Players[i] = &msg.Player{
+		p := &msg.Player{
 			Uid:    player.uid,
 			Name:   player.name,
 			SeatId: player.seatID,
 		}
+		if player.seatID > 0 {
+			p.Bet = obj.round.betChips[uint32(player.seatID)]
+		}
+
+		rsp.JoinRoomRsp.Room.Players[i] = p
 		i++
 	}
 
@@ -566,6 +601,12 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 		return
 	}
 
+	// 是否已经提交牌组
+	if _, ok := obj.round.result[seatID]; ok {
+		rspProto.Ret = msg.ErrorID_Combine_Already_Done
+		return
+	}
+
 	if !req.Autowin {
 
 		// 验证请求数据
@@ -574,7 +615,7 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 			return
 		}
 		for ndx, group := range req.CardGroups {
-			if group == nil || !((ndx == 0 && len(group.Cards) > 3) ||
+			if group == nil || ((ndx == 0 && len(group.Cards) > 3) ||
 				(ndx != 0 && len(group.Cards) > 5)) {
 				rspProto.Ret = msg.ErrorID_Combine_Invalid_Request_Data
 				return
@@ -629,6 +670,8 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 			}
 			obj.round.leftCards[seatID] = c
 		}
+	} else {
+		// todo: 检查是否满足autowin条件
 	}
 
 	obj.round.result[seatID] = &msg.SeatResult{

@@ -1,0 +1,6 @@
+docs/
+src/network-unity/
+client.exe*
+debug*
+log/
+*.pb.go

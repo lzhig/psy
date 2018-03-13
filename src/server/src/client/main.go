@@ -12,13 +12,14 @@ func main() {
 	var ip = flag.String("address", "127.0.0.1:8010", "help message for flagname")
 	var num = flag.Int("num", 1, "connections")
 	var id = flag.Int("id", 0, "id")
+	var room = flag.Int("room", 0, "room number")
 	flag.Parse()
 	fmt.Println("id:", *id)
 	runtime.GOMAXPROCS(4)
 	if *num == 1 {
 		fmt.Println("interactive mode")
 		c := client{}
-		c.init(*ip, 5000, fmt.Sprintf("fbid_%d", *id))
+		c.init(*ip, 5000, fmt.Sprintf("fbid_%d", *id), uint32(*room))
 		go c.start()
 
 		go func() {
@@ -54,7 +55,7 @@ func main() {
 	for i := 0; i < *num; i++ {
 		go func(i int) {
 			c := &client{}
-			c.init(*ip, 5000, fmt.Sprintf("fbid_%d", i))
+			c.init(*ip, 5000, fmt.Sprintf("fbid_%d", i), uint32(*room))
 			c.start()
 		}(i)
 	}

@@ -15,15 +15,15 @@ func logInit() {
 }
 
 func logInfo(args ...interface{}) {
-	glog.Infoln(args...)
+	glog.InfoDepth(1, args...)
 }
 
 func logWarn(args ...interface{}) {
-	glog.Warningln(args...)
+	glog.WarningDepth(1, args...)
 }
 
 func logError(args ...interface{}) {
-	glog.Errorln(args...)
+	glog.ErrorDepth(1, args...)
 }
 
 func logFlush() {

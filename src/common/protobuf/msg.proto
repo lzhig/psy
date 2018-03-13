@@ -113,6 +113,7 @@ enum ErrorID {
     Combine_Not_Combine_State = 180; // 不是组牌阶段，不能组牌
     Combine_Not_In_This_Round = 181; // 没有参与本局
     Combine_Invalid_Request_Data = 182; // 非法请求数据
+    Combine_Already_Done = 183; // 已经提交过了
 }
 
 message Protocol {
@@ -216,6 +217,7 @@ message Player {
     uint32 uid = 1; // uid
     string name = 2; // 名字
     int32 seat_id = 3; // 座位
+    uint32 bet = 4; // 已下注额
 }
 
 
@@ -231,6 +233,9 @@ message Room {
     bool is_share = 9; // aa制
     repeated Player players = 10; // all players
     GameState state = 11; // 游戏状态
+    int32 countdown = 12; // 状态倒计时, ms, -1为无倒计时
+    repeated uint32 cards = 13; // 自己的手牌
+    repeated SeatResult result = 14; // 结算结果
 }
 
 message JoinRoomReq {
