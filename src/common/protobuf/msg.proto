@@ -114,6 +114,7 @@ enum ErrorID {
     Combine_Not_In_This_Round = 181; // 没有参与本局
     Combine_Invalid_Request_Data = 182; // 非法请求数据
     Combine_Already_Done = 183; // 已经提交过了
+    Combine_Not_Lucky = 139; // 不是lucky
 }
 
 message Protocol {

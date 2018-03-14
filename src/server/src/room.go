@@ -671,7 +671,13 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 			obj.round.leftCards[seatID] = c
 		}
 	} else {
-		// todo: 检查是否满足autowin条件
+		// 检查是否满足autowin条件
+		cards := make([]uint32, 0, 5)
+		_, rank, ok := findCardRank(obj.round.handCards[seatID], cards, 5)
+		if !ok || rank < msg.CardRank_Four_Of_A_Kind {
+			rspProto.Ret = msg.ErrorID_Combine_Not_Lucky
+			return
+		}
 	}
 
 	obj.round.result[seatID] = &msg.SeatResult{
