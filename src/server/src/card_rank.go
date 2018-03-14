@@ -314,6 +314,17 @@ func matchStraightFlush(cards []Card, value []int, n int, needSort bool) bool {
 		if cards[value[l-1]].value != uint32(5-l) && cards[value[l-1]].value != uint32(13-l) {
 			return false
 		}
+
+		for i := 1; i < l-1; i++ {
+			if cards[value[i]].value != cards[value[i+1]].value+1 {
+				return false
+			}
+		}
+
+		if l == 5 && cards[value[4]].value == Card_2_Value {
+			// 5 4 3 2 A重新排序
+			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+		}
 		return true
 	}
 
