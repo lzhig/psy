@@ -67,6 +67,11 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 		})
 	}
 
+	if p.LoginReq == nil {
+		errHandle(msg.ErrorID_Invalid_Params)
+		return
+	}
+
 	switch p.LoginReq.Type {
 
 	case msg.LoginType_Facebook:

@@ -14,6 +14,11 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
+	if req == nil {
+		rsp.CreateRoomRsp.Ret = msg.ErrorID_Invalid_Params
+		return
+	}
+
 	// check name length
 	nameLen := len([]rune(req.Name))
 	if nameLen > gApp.config.Room.RoomNameLen || nameLen == 0 {
