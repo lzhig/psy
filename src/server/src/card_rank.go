@@ -137,9 +137,26 @@ func sortCards(cards []Card, value []int) {
 
 func calculateStraightFlush(cards []Card, value []int, num int) bool {
 	for i := 0; i < num-1; i++ {
-		if cards[value[i]].value != cards[value[i+1]].value+1 || cards[value[i]].color != cards[value[i+1]].color {
+		if cards[value[i]].color != cards[value[i+1]].color {
 			return false
 		}
+	}
+
+	found := true
+	for i := 0; i < num-1; i++ {
+		if cards[value[i]].value != cards[value[i+1]].value+1 {
+			found = false
+			break
+		}
+	}
+
+	if !found {
+		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
+			// 5 4 3 2 A, 只是判断牌型, 不需要重新排序
+			//value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+			return true
+		}
+		return false
 	}
 
 	return true
@@ -170,10 +187,22 @@ func calculateFlush(cards []Card, value []int, num int) bool {
 }
 
 func calculateStraight(cards []Card, value []int, num int) bool {
+
+	found := true
 	for i := 0; i < num-1; i++ {
 		if cards[value[i]].value != cards[value[i+1]].value+1 {
-			return false
+			found = false
+			break
 		}
+	}
+
+	if !found {
+		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
+			// 5 4 3 2 A, 只是判断牌型, 不需要重新排序
+			//value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+			return true
+		}
+		return false
 	}
 
 	return true
@@ -434,6 +463,15 @@ func matchStraight(cards []Card, value []int, n int, needSort bool) bool {
 	if l > 1 && cards[value[0]].value == Card_A_Value {
 		if cards[value[l-1]].value != uint32(5-l) {
 			return false
+		}
+		for i := 1; i < l-1; i++ {
+			if cards[value[i]].value != cards[value[i+1]].value+1 {
+				return false
+			}
+		}
+		if l == 5 && cards[value[4]].value == Card_2_Value {
+			// 5 4 3 2 A重新排序
+			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
 		}
 		return true
 	}

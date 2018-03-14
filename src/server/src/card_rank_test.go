@@ -18,8 +18,19 @@ func Test_calculateCardRank(t *testing.T) {
 		want msg.CardRank
 	}{
 		{
-			name: "1",
+			name: "Straight_Flush",
 			args: args{cards: []uint32{3, 5, 2, 4, 1}},
+			want: msg.CardRank_Straight_Flush,
+		},
+		{
+			name: "Straight_Flush_1",
+			args: args{cards: []uint32{3, 1, 2, 0, 12}},
+			want: msg.CardRank_Straight_Flush,
+		},
+
+		{
+			name: "Straight_Flush_2",
+			args: args{cards: []uint32{12, 11, 10, 9, 8}},
 			want: msg.CardRank_Straight_Flush,
 		},
 
@@ -189,7 +200,7 @@ func Test_findCardRank(t *testing.T) {
 		{
 			name:  "straight_A",
 			args:  args{cards: []uint32{1, 2, 3, 13, 12}, form: []uint32{}, n: 5},
-			want:  []uint32{12, 3, 2, 1, 13},
+			want:  []uint32{3, 2, 1, 13, 12},
 			want1: msg.CardRank_Straight,
 			want2: true,
 		},
