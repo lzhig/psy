@@ -351,12 +351,13 @@ message CombineNotify {
 message SeatResult {
     uint32 seat_id = 1; // 座位号
     repeated CardGroup card_groups = 2; // 牌组
-    bool autowin = 3; //
-    repeated CardRank ranks = 4; // 牌型
-    repeated int32 scores = 5; // 牌组得分
-    int32 total_score = 6; // 得分总和，如果是autowin赢或者输, score字段为空
-    int32 win = 7; // 输赢积分
-    uint32 bet = 8; // 下注
+    bool autowin = 3; // 是否get lucky
+    bool foul = 4; // 是否乌龙
+    repeated CardRank ranks = 5; // 牌型
+    repeated int32 scores = 6; // 牌组得分,banker不用此值，banker的scores与闲家为正负关系
+    int32 total_score = 7; // 得分总和，如果是autowin赢输和或者乌龙, score字段为空
+    int32 win = 8; // 输赢积分
+    uint32 bet = 9; // 下注
 }
 
 
@@ -375,7 +376,8 @@ message GameStateNotify {
     GameState state = 1;    // 状态
     uint32 countdown = 2; // 状态时间 ms, 0-表示无倒计时
     repeated uint32 deal_cards = 3; // 发牌阶段
-    repeated SeatResult result = 4; // 结算结果
+    repeated uint32 deal_seats = 4; // 发牌的座位
+    repeated SeatResult result = 5; // 结算结果
 }
 
 // game

@@ -702,3 +702,13 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 		}
 	}
 }
+
+func (obj *Room) getTablePlayersCount() int {
+	ret := 0
+	for _, player := range obj.tablePlayers {
+		if player != nil {
+			ret++
+		}
+	}
+	return ret
+}

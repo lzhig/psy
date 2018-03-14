@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	"./msg"
@@ -49,7 +50,7 @@ func (obj *Round) bet(seatID uint32, chips uint32) bool {
 
 func (obj *Round) isAllBet() bool {
 	//return len(obj.betChips) == int(gApp.config.Room.MaxTablePlayers)
-	return len(obj.betChips) == len(obj.room.tablePlayers)-1
+	return len(obj.betChips) == obj.room.getTablePlayersCount()
 }
 
 func (obj *Round) isAllCombine() bool {
@@ -129,6 +130,13 @@ func (obj *Round) switchGameState(state msg.GameState) {
 	case msg.GameState_Deal:
 		// 对每个参与本轮游戏的玩家发牌
 		obj.deal()
+
+		notify.GameStateNotify.DealSeats = make([]uint32, len(obj.players))
+		i := 0
+		for seatID := range obj.players {
+			notify.GameStateNotify.DealSeats[i] = seatID
+			i++
+		}
 
 		for _, player := range obj.room.players {
 			if obj.isJoinPlayer(player.seatID) {
@@ -229,12 +237,13 @@ func (obj *Round) calculateResult() {
 	}
 
 	// 计算牌型
-	// todo: 当前没有检测牌型乌龙
 	var bankerResult *msg.SeatResult
 	for _, result := range obj.result {
 		if result.SeatId == 0 {
 			bankerResult = result
 		}
+
+		// 有lucky时，需要计算组牌
 		// if result.Autowin {
 		// 	continue
 		// }
@@ -281,6 +290,33 @@ func (obj *Round) calculateResult() {
 		}
 	}
 
+	// 当前没有检测牌型乌龙
+	for _, result := range obj.result {
+		if result.Autowin {
+			continue
+		}
+
+		calcFoul := func(result *msg.SeatResult) {
+			for i := 0; i < 2; i++ {
+				if result.Ranks[i] < result.Ranks[i+1] {
+					result.Foul = true
+					return
+				} else if result.Ranks[i] == result.Ranks[i+1] {
+					// 如果牌型一样，比较牌值
+					n := int(math.Min(float64(len(result.CardGroups[i].Cards)), float64(len(result.CardGroups[i+1].Cards))))
+					for j := 0; j < n; j++ {
+						if result.CardGroups[i].Cards[j]%13 < result.CardGroups[i+1].Cards[j]%13 {
+							result.Foul = true
+							return
+						}
+					}
+				}
+			}
+		}
+
+		calcFoul(result)
+	}
+
 	bankerWin := int32(0)
 	// 计算得分, 分别与庄家比较
 	for _, result := range obj.result {
@@ -293,14 +329,17 @@ func (obj *Round) calculateResult() {
 			if !result.Autowin {
 				result.TotalScore = -2
 			}
-			continue
-		}
-		if result.Autowin {
+		} else if result.Autowin {
 			result.TotalScore = 2
-			continue
+		} else if bankerResult.Foul {
+			if !result.Foul {
+				result.TotalScore = 2
+			}
+		} else if result.Foul {
+			result.TotalScore = -2
+		} else {
+			result.Scores, result.TotalScore = obj.compareCardGroup(result, bankerResult)
 		}
-
-		result.Scores, result.TotalScore = obj.compareCardGroup(result, bankerResult)
 
 		// 计算输赢积分
 		result.Bet = obj.betChips[result.SeatId]
