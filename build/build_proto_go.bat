@@ -1,6 +1,8 @@
+@echo off
+
 call global.bat
 
-@echo %TOOLS_DIR%
+rem @echo %TOOLS_DIR%
 
 %TOOLS_DIR%\protobuf\protoc --go_out=%SRC_DIR%\server\src\msg -I %SRC_DIR%\common\protobuf %SRC_DIR%\common\protobuf\msg.proto
 
