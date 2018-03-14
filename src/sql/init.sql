@@ -72,7 +72,7 @@ CREATE TABLE `users` (
   `logintime` int(11) unsigned NOT NULL COMMENT '登录时间',
   `diamonds` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '钻石',
   PRIMARY KEY (`uid`)
-) ENGINE=InnoDB AUTO_INCREMENT=206 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=100000 DEFAULT CHARSET=utf8;
 
 /* Procedure structure for procedure `create_facebook_user` */
 
