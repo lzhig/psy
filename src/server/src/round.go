@@ -281,7 +281,7 @@ func (obj *Round) calculateResult() {
 		}
 	}
 
-	banker_win := int32(0)
+	bankerWin := int32(0)
 	// 计算得分, 分别与庄家比较
 	for _, result := range obj.result {
 		if result.SeatId == 0 {
@@ -305,9 +305,9 @@ func (obj *Round) calculateResult() {
 		// 计算输赢积分
 		result.Bet = obj.betChips[result.SeatId]
 		result.Win = result.TotalScore * int32(obj.betChips[result.SeatId])
-		banker_win += result.Win
+		bankerWin += result.Win
 	}
-	obj.result[0].Win = -banker_win
+	obj.result[0].Win = -bankerWin
 }
 
 func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {

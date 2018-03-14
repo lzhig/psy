@@ -150,7 +150,7 @@ func (obj *UserManager) consumeDiamonds(uid uint32, diamonds uint32, reason stri
 		if err := db.saveUserDiamonds(uid, user.diamonds); err != nil {
 			logError("[UserManager] [consumeDiamonds] save to db. error:", err)
 		} else {
-			logInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)
+			logInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
 		}
 
 		// 发送扣除钻石通知
