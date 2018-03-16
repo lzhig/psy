@@ -13,13 +13,17 @@ import (
 	"net/http"
 
 	_ "net/http/pprof"
+
+	"github.com/lzhig/rapidgo/base"
 )
 
 var gApp = &App{}
 
 func main() {
-	defer logFlush()
+	defer base.LogFlush()
 	defer gApp.End()
+
+	defer base.LogPanic()
 
 	flag.Parse()
 
@@ -27,10 +31,10 @@ func main() {
 		log.Println(http.ListenAndServe("localhost:6061", nil))
 	}()
 
-	logInit()
+	base.LogInit("./log")
 
 	if err := gApp.Init(); err != nil {
-		logError(err)
+		base.LogError(err)
 		return
 	}
 	gApp.Start()

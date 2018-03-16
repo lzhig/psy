@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/lzhig/rapidgo/base"
 )
 
 // RoomNumberGenerator type
@@ -76,7 +78,7 @@ func (obj *RoomNumberGenerator) put(code string) {
 			return
 		}
 	}
-	logError("[RoomNumberGenerator][put] cannot find num:", num, obj)
+	base.LogError("[RoomNumberGenerator][put] cannot find num:", num, obj)
 }
 
 func (obj *RoomNumberGenerator) decode(num int) string {

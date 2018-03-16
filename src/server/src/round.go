@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 // Round 表示一局
@@ -50,7 +51,7 @@ func (obj *Round) bet(seatID uint32, chips uint32) bool {
 
 func (obj *Round) isAllBet() bool {
 	//return len(obj.betChips) == int(gApp.config.Room.MaxTablePlayers)
-	return len(obj.betChips) == obj.room.getTablePlayersCount()
+	return len(obj.betChips) == obj.room.getTablePlayersCount()-1
 }
 
 func (obj *Round) isAllCombine() bool {
@@ -93,7 +94,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 }
 
 func (obj *Round) switchGameState(state msg.GameState) {
-	logInfo("switchGameState", state)
+	base.LogInfo("switchGameState", state)
 	obj.state = state
 	obj.stateBeginTime = time.Now()
 	notify := &msg.Protocol{
@@ -160,7 +161,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			notify.GameStateNotify.Result[i] = v
 			i++
 		}
-		logInfo(notify)
+		base.LogInfo(notify)
 		obj.room.notifyAll(notify)
 	case msg.GameState_Result:
 		obj.room.notifyAll(notify)
@@ -178,15 +179,15 @@ func (obj *Round) switchGameState(state msg.GameState) {
 }
 
 func (obj *Round) deal() {
-	logInfo("[Round][deal]")
+	base.LogInfo("[Round][deal]")
 	cards := dealer.deal()
 
 	obj.handCards[0] = cards[0:gApp.config.Room.DealCardsNum]
-	logInfo("seat 0:", obj.handCards[0])
+	base.LogInfo("seat 0:", obj.handCards[0])
 	i := uint32(1)
 	for seatID := range obj.betChips {
 		obj.handCards[seatID] = cards[i*gApp.config.Room.DealCardsNum : (i+1)*gApp.config.Room.DealCardsNum]
-		logInfo("seat ", seatID, ":", obj.handCards[seatID])
+		base.LogInfo("seat ", seatID, ":", obj.handCards[seatID])
 		i++
 	}
 }
@@ -250,8 +251,10 @@ func (obj *Round) calculateResult() {
 
 		result.Ranks = make([]msg.CardRank, 3)
 		leftCards := obj.leftCards[result.SeatId]
+		base.LogInfo("leftCards:", leftCards)
 		for ndx := 2; ndx >= 0; ndx-- {
 			group := result.CardGroups[ndx]
+			base.LogInfo(ndx, group.Cards)
 
 			// 自动组牌
 			autoCombine := false
@@ -264,9 +267,9 @@ func (obj *Round) calculateResult() {
 			}
 			if autoCombine {
 				formCards, rank, ok := findCardRank(leftCards, group.Cards, num)
-				logInfo(formCards, rank, ok)
+				base.LogInfo(formCards, rank, ok)
 				if !ok {
-					logError("[Round][calculateResult]failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
+					base.LogError("[Round][calculateResult]failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
 					rank = msg.CardRank_High_Card
 				} else {
 					// 移去用掉的牌
@@ -298,14 +301,14 @@ func (obj *Round) calculateResult() {
 
 		calcFoul := func(result *msg.SeatResult) {
 			for i := 0; i < 2; i++ {
-				if result.Ranks[i] < result.Ranks[i+1] {
+				if result.Ranks[i] > result.Ranks[i+1] {
 					result.Foul = true
 					return
 				} else if result.Ranks[i] == result.Ranks[i+1] {
 					// 如果牌型一样，比较牌值
 					n := int(math.Min(float64(len(result.CardGroups[i].Cards)), float64(len(result.CardGroups[i+1].Cards))))
 					for j := 0; j < n; j++ {
-						if result.CardGroups[i].Cards[j]%13 < result.CardGroups[i+1].Cards[j]%13 {
+						if result.CardGroups[i].Cards[j]%13 > result.CardGroups[i+1].Cards[j]%13 {
 							result.Foul = true
 							return
 						}
@@ -371,9 +374,9 @@ func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
 					}
 				}
 			}
-			logInfo(a.CardGroups, b.CardGroups)
+			base.LogInfo(a.CardGroups, b.CardGroups)
 			for j := 0; j < num; j++ {
-				logInfo(a.CardGroups[i], b.CardGroups[i])
+				base.LogInfo(a.CardGroups[i], b.CardGroups[i])
 				v1 := a.CardGroups[i].Cards[j] % 13
 				v2 := b.CardGroups[i].Cards[j] % 13
 				if v1 > v2 {

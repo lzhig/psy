@@ -50,6 +50,8 @@ func (obj *LoginService) loop(ctx context.Context) {
 }
 
 func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
+	defer base.LogPanic()
+
 	obj.limitation.Acquire()
 	defer obj.limitation.Release()
 
@@ -125,7 +127,7 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 func sendProtocol(conn *rapidnet.Connection, p *msg.Protocol) {
 	data, err := proto.Marshal(p)
 	if err != nil {
-		logError("Failed to marshal. p:", p, "error:", err)
+		base.LogError("Failed to marshal. p:", p, "error:", err)
 		return
 	}
 	conn.Send(data)

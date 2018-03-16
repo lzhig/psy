@@ -9,7 +9,7 @@
         "gm": ":8011"
     },
     "mysql":{
-        "addr":"192.168.2.56:3306",
+        "addr":"127.0.0.1:3306",
         "username":"root",
         "password":"123456",
         "db":"pusoy"
@@ -23,7 +23,7 @@
         "deal_cards_num":13,
         "max_players":20,
         "max_bet_rate":20,
-        "states_countdown":[0, 10000, 2000, 1000, 45000, 1000, 1000]
+        "states_countdown":[0, 10000, 2000, 3000, 45000, 1000, 1000]
     },
     "user":{
         "init_diamonds":10000

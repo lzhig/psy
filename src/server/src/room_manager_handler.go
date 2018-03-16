@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
@@ -54,7 +55,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	// 创建的房间达到上限
 	count, err := db.getRoomCreatedCount(p.userconn.uid)
 	if err != nil {
-		logError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
+		base.LogError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
 		return
 	}
@@ -79,7 +80,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 
 	room, err := obj.createRoom(number, req.Name, p.userconn.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
 	if err != nil {
-		logError("[RoomManager][createRoom] failed to create room. error:", err)
+		base.LogError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
 		return
 	}
@@ -107,7 +108,7 @@ func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
 			p.userconn.sendProtocol(rsp)
 			return
 		case err != nil:
-			logError("[RoomManager][joinRoom] failed to find room. number:", req.RoomNumber, ",error:", err)
+			base.LogError("[RoomManager][joinRoom] failed to find room. number:", req.RoomNumber, ",error:", err)
 			rsp.JoinRoomRsp.Ret = msg.ErrorID_DB_Error
 			p.userconn.sendProtocol(rsp)
 			return

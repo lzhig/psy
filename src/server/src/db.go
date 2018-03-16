@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/lzhig/rapidgo/base"
 )
 
 type mysqlDB struct {
@@ -21,7 +22,9 @@ func (obj *mysqlDB) open(addr, username, password, dbname string) error {
 }
 
 func (obj *mysqlDB) close() {
-	obj.db.Close()
+	if obj.db != nil {
+		obj.db.Close()
+	}
 }
 
 // 查找fbid，如果存在更新name
@@ -32,12 +35,12 @@ func (obj *mysqlDB) getUIDFacebook(fbID, name string) (uint32, error) {
 	case err == sql.ErrNoRows:
 		return 0, nil
 	case err != nil:
-		logError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	default:
 		_, err := obj.db.Exec("update users set name=? where uid=?", name, uid)
 		if err != nil {
-			logWarn("[mysql][getUIDFacebook] update name, error:", err, "uid:", uid, ", name:", name)
+			base.LogWarn("[mysql][getUIDFacebook] update name, error:", err, "uid:", uid, ", name:", name)
 		}
 
 		return uid, nil
@@ -47,20 +50,20 @@ func (obj *mysqlDB) getUIDFacebook(fbID, name string) (uint32, error) {
 func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint32, error) {
 	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,?,@uid)")
 	if err != nil {
-		logError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(fbID, name, diamonds)
 	if err != nil {
-		logError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	}
 
 	stmt1, err := obj.db.Prepare("select @uid as uid")
 	if err != nil {
-		logError("[mysql][createFacebookUser] failed to prepare select, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][createFacebookUser] failed to prepare select, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	}
 	defer stmt1.Close()
@@ -68,7 +71,7 @@ func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint
 	var uid uint32
 	err = stmt1.QueryRow().Scan(&uid)
 	if err != nil {
-		logError("[mysql][createFacebookUser] failed to scan, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][createFacebookUser] failed to scan, error:", err, "fbID:", fbID, ", name:", name)
 		return 0, err
 	}
 
@@ -77,7 +80,7 @@ func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint
 
 func (obj *mysqlDB) getUserData(uid uint32) (name string, diamonds uint32, err error) {
 	if err := obj.db.QueryRow("select name,diamonds from users where uid=?", uid).Scan(&name, &diamonds); err != nil {
-		logError("[mysql][getUserData] error:", err, ",uid:", uid)
+		base.LogError("[mysql][getUserData] error:", err, ",uid:", uid)
 		return "", 0, err
 	}
 

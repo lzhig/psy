@@ -7,6 +7,7 @@ import (
 	"../msg"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/lzhig/rapidgo/base"
 	"github.com/lzhig/rapidgo/rapidnet"
 )
 
@@ -171,6 +172,7 @@ func (obj *client) sendStartGame() {
 }
 
 func (obj *client) handleConnection(conn *rapidnet.Connection) {
+	defer base.LogPanic()
 	defer func() {
 		log(obj, "exit handleConnection.")
 	}()

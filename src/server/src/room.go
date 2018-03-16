@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 const (
@@ -118,7 +119,7 @@ func (obj *Room) loop(ctx context.Context) {
 			if handler, ok := obj.protoHandlers[p.p.Msgid]; ok {
 				handler(p)
 			} else {
-				logError("[Room][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+				base.LogError("[Room][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 				p.userconn.Disconnect()
 			}
 
@@ -126,7 +127,7 @@ func (obj *Room) loop(ctx context.Context) {
 			if handler, ok := obj.eventHandlers[event.event]; ok {
 				handler(event.args)
 			} else {
-				logError("[Room][loop] cannot find a handler for event:", event.event)
+				base.LogError("[Room][loop] cannot find a handler for event:", event.event)
 				gApp.Exit()
 			}
 		}
@@ -143,7 +144,7 @@ func (obj *Room) notifyUserDisconnect(uid uint32) {
 
 func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	if args == nil || len(args) == 0 {
-		logError("[Room][handleEventUserDisconnect] invalid args")
+		base.LogError("[Room][handleEventUserDisconnect] invalid args")
 		return
 	}
 	uid := args[0].(uint32)
@@ -355,7 +356,7 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 
 	player := obj.players[p.userconn.uid]
 	if player == nil {
-		logError("[Room][handleSitDownReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleSitDownReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -413,7 +414,7 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 
 	player := obj.players[p.userconn.uid]
 	if player == nil {
-		logError("[Room][handleStandUpReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleStandUpReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -535,7 +536,7 @@ func (obj *Room) handleBetReq(p *ProtocolConnection) {
 	// 是否入座
 	player := obj.players[p.userconn.uid]
 	if player == nil {
-		logError("[Room][handleBetReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleBetReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -590,7 +591,7 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 	// 是否参与本局
 	player := obj.players[p.userconn.uid]
 	if player == nil {
-		logError("[Room][handleCombineReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleCombineReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}

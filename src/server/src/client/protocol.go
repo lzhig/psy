@@ -2,6 +2,7 @@ package main
 
 import (
 	"../msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 type protocolHandler struct {
@@ -32,6 +33,7 @@ func (obj *protocolHandler) getProtoChan() chan<- *msg.Protocol {
 }
 
 func (obj *protocolHandler) loop() {
+	defer base.LogPanic()
 	for {
 		select {
 		case p := <-obj.protoChan:

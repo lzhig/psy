@@ -245,6 +245,7 @@ func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 		{rank: msg.CardRank_Three_Of_A_Kind, match: matchThreeOfAKind},
 		{rank: msg.CardRank_Two_Pair, match: matchTwoPair},
 		{rank: msg.CardRank_One_Pair, match: matchOnePair},
+		{rank: msg.CardRank_High_Card, match: matchHighCard},
 	}
 	sort := true
 	if len(fv) == 0 {
@@ -578,6 +579,14 @@ func matchOnePair(cards []Card, value []int, n int, needSort bool) bool {
 			return true
 		}
 		return false
+	}
+
+	return true
+}
+
+func matchHighCard(cards []Card, value []int, n int, needSort bool) bool {
+	if needSort {
+		sortCards(cards, value)
 	}
 
 	return true

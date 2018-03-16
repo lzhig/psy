@@ -14,6 +14,7 @@ import (
 	"./msg"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/lzhig/rapidgo/base"
 	"github.com/lzhig/rapidgo/rapidnet"
 )
 
@@ -51,16 +52,16 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 					case event := <-obj.eventChan:
 						switch event.Type {
 						case rapidnet.EventConnected:
-							logInfo(event.Conn.RemoteAddr().String(), "connected")
+							base.LogInfo(event.Conn.RemoteAddr().String(), "connected")
 							ctx, _ := context.WithCancel(ctx)
 							gApp.GoRoutineArgs(ctx, obj.handleConnection, &userConnection{conn: event.Conn})
 
 							// todo 连接成功后，一段时间后需要登录成功，否则将断线
 						case rapidnet.EventDisconnected:
-							logInfo(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
+							base.LogInfo(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
 
 						case rapidnet.EventSendFailed:
-							logInfo(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
+							base.LogInfo(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
 						}
 					}
 				}
@@ -72,7 +73,7 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interface{}) {
 	defer debug("exit NetworkEngine handleConnection goroutine")
 	if args == nil || len(args) == 0 {
-		logError("[NetworkEngine][handleConnection] invalid args")
+		base.LogError("[NetworkEngine][handleConnection] invalid args")
 		return
 	}
 	userconn := args[0].(*userConnection)
@@ -92,14 +93,14 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 
 			p := &msg.Protocol{}
 			if err := proto.Unmarshal(data, p); err != nil {
-				logWarn("failed to unmarshal request. error:", err, ". address:", userconn.conn.RemoteAddr().String())
+				base.LogWarn("failed to unmarshal request. error:", err, ". address:", userconn.conn.RemoteAddr().String())
 				userconn.Disconnect()
 				return
 			}
 
 			// 如果没有登录，不处理其他协议
 			if userconn.uid == 0 && p.Msgid != msg.MessageID_Login_Req {
-				logWarn("receive request while no login. address:", userconn.conn.RemoteAddr().String())
+				base.LogWarn("receive request while no login. address:", userconn.conn.RemoteAddr().String())
 				userconn.Disconnect()
 				return
 			}

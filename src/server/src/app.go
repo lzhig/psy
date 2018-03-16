@@ -46,7 +46,7 @@ func (obj *App) Init() error {
 		debug = func(a ...interface{}) (int, error) { return 0, nil }
 	}
 
-	logInfo("version:", obj.config.Version)
+	base.LogInfo("version:", obj.config.Version)
 
 	runtime.GOMAXPROCS(obj.config.CPUNum)
 
@@ -78,7 +78,7 @@ func (obj *App) Init() error {
 	// gm
 	obj.gm = &gameManager{}
 
-	logInfo("init done.")
+	base.LogInfo("init done.")
 
 	return nil
 }

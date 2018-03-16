@@ -2,6 +2,7 @@ package main
 
 import (
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 // ProtoHandlerFunc type
@@ -33,10 +34,10 @@ func (obj *protocolHandler) init() {
 
 func (obj *protocolHandler) handle(p *ProtocolConnection) {
 	if f, ok := obj.dispatcher[p.p.Msgid]; ok {
-		logInfo("received msgid:", msg.MessageID_name[int32(p.p.Msgid)], ", uid:", p.userconn.uid)
+		base.LogInfo("received msgid:", msg.MessageID_name[int32(p.p.Msgid)], ", uid:", p.userconn.uid)
 		f(p)
 	} else {
-		logError("[protocolHandler][dispatch] cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		base.LogError("[protocolHandler][dispatch] cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 		p.userconn.Disconnect()
 	}
 }
@@ -56,7 +57,7 @@ func (obj *protocolHandler) handleRoom(p *ProtocolConnection) {
 		if p.userconn.room != nil {
 			p.userconn.room.GetProtoChan() <- p
 		} else {
-			logError("[protocolHandler][handleRoom] cannot find room. proto:", p)
+			base.LogError("[protocolHandler][handleRoom] cannot find room. proto:", p)
 		}
 	}
 }

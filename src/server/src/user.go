@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 // The User type represents a player
@@ -148,9 +149,9 @@ func (obj *UserManager) consumeDiamonds(uid uint32, diamonds uint32, reason stri
 		user.diamonds -= diamonds
 
 		if err := db.saveUserDiamonds(uid, user.diamonds); err != nil {
-			logError("[UserManager] [consumeDiamonds] save to db. error:", err)
+			base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 		} else {
-			logInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
+			base.LogInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
 		}
 
 		// 发送扣除钻石通知
@@ -171,9 +172,9 @@ func (obj *UserManager) consumeUsersDiamonds(uids []uint32, diamonds uint32, rea
 		if ret {
 			for _, user := range usersDone {
 				if err := db.saveUserDiamonds(user.uid, user.diamonds); err != nil {
-					logError("[UserManager] [consumeDiamonds] save to db. error:", err)
+					base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 				} else {
-					logInfo("[UserManager] [consumeDiamonds] uid:", user.uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)
+					base.LogInfo("[UserManager] [consumeDiamonds] uid:", user.uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)
 				}
 
 				// 发送扣除钻石通知
@@ -220,7 +221,7 @@ func (obj *UserManager) enterRoom(uid uint32, room *Room) {
 		defer user.Unlock()
 
 		if user.room != nil {
-			logError("user.room should be nil when a user enters room")
+			base.LogError("user.room should be nil when a user enters room")
 		}
 		user.room = room
 	}

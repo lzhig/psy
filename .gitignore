@@ -4,3 +4,7 @@ client.exe*
 debug*
 log/
 *.pb.go
+src/server/src/src.exe
+src/unity/Msg.cs
+src/server/src/src
+versions/

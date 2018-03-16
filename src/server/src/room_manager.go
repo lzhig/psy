@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 // RoomManager type
@@ -43,7 +44,7 @@ func (obj *RoomManager) loop(ctx context.Context) {
 			if handler, ok := obj.handlers[p.p.Msgid]; ok {
 				handler(p)
 			} else {
-				logError("[RoomManager][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+				base.LogError("[RoomManager][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 				p.userconn.Disconnect()
 			}
 		}

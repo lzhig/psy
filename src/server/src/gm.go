@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/golang/glog"
+	"github.com/lzhig/rapidgo/base"
 )
 
 type gameManager struct {
@@ -14,6 +15,8 @@ type gameManager struct {
 
 func (obj *gameManager) Start(addr string) {
 	go func() {
+		defer base.LogPanic()
+
 		http.HandleFunc("/user", userCountHandler)
 		http.HandleFunc("/GmOperation", gmOperationHandler)
 		http.HandleFunc("/exit", gmExit)
