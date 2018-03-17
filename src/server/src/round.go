@@ -180,8 +180,8 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 func (obj *Round) deal() {
 	base.LogInfo("[Round][deal]")
-	//cards := dealer.deal()
-	cards := []uint32{0, 1, 2, 3, 12, 5, 6, 7, 8, 9, 24, 13, 43, 47, 26, 27, 28, 29, 38, 31, 32, 33, 34, 35, 50, 39}
+	cards := dealer.deal()
+	//cards := []uint32{0, 1, 2, 3, 12, 5, 6, 7, 8, 9, 24, 13, 43, 47, 26, 27, 28, 29, 38, 31, 32, 33, 34, 35, 50, 39}
 
 	obj.handCards[0] = cards[0:gApp.config.Room.DealCardsNum]
 	base.LogInfo("seat 0:", obj.handCards[0])
