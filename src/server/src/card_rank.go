@@ -152,8 +152,8 @@ func calculateStraightFlush(cards []Card, value []int, num int) bool {
 
 	if !found {
 		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A, 只是判断牌型, 不需要重新排序
-			//value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+			// 5 4 3 2 A，排序
+			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
 			return true
 		}
 		return false
@@ -198,8 +198,8 @@ func calculateStraight(cards []Card, value []int, num int) bool {
 
 	if !found {
 		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A, 只是判断牌型, 不需要重新排序
-			//value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+			// 5 4 3 2 A 排序
+			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
 			return true
 		}
 		return false
@@ -238,10 +238,12 @@ func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 		match matchFunc
 	}{
 		{rank: msg.CardRank_Straight_Flush, match: matchStraightFlush},
+		{rank: msg.CardRank_Straight_Flush, match: matchStraightFlush5432A},
 		{rank: msg.CardRank_Four_Of_A_Kind, match: matchFourOfAKind},
 		{rank: msg.CardRank_Full_House, match: matchFullHouse},
 		{rank: msg.CardRank_Flush, match: matchFlush},
 		{rank: msg.CardRank_Straight, match: matchStraight},
+		{rank: msg.CardRank_Straight, match: matchStraight5432A},
 		{rank: msg.CardRank_Three_Of_A_Kind, match: matchThreeOfAKind},
 		{rank: msg.CardRank_Two_Pair, match: matchTwoPair},
 		{rank: msg.CardRank_One_Pair, match: matchOnePair},
@@ -322,6 +324,32 @@ func findRecursive(cards []Card, value []int, f []Card, fv []int, n int, match m
 }
 
 func matchStraightFlush(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
+	if needSort {
+		sortCards(cards, value)
+	}
+
+	l := len(value)
+	for i := 0; i < l-1; i++ {
+		if cards[value[i]].value == cards[value[i+1]].value {
+			return false
+		}
+		if cards[value[i]].color != cards[value[i+1]].color {
+			return false
+		}
+	}
+
+	if l > 2 && cards[value[0]].value-cards[value[l-1]].value > 4 {
+		return false
+	}
+
+	return true
+}
+
+func matchStraightFlush5432A(cards []Card, value []int, n int, needSort bool) bool {
 	if n < 5 {
 		return false
 	}
@@ -446,6 +474,29 @@ func matchFlush(cards []Card, value []int, n int, needSort bool) bool {
 }
 
 func matchStraight(cards []Card, value []int, n int, needSort bool) bool {
+	if n < 5 {
+		return false
+	}
+
+	if needSort {
+		sortCards(cards, value)
+	}
+
+	l := len(value)
+	for i := 0; i < l-1; i++ {
+		if cards[value[i]].value == cards[value[i+1]].value {
+			return false
+		}
+	}
+
+	if l > 2 && cards[value[0]].value-cards[value[l-1]].value > 4 {
+		return false
+	}
+
+	return true
+}
+
+func matchStraight5432A(cards []Card, value []int, n int, needSort bool) bool {
 	if n < 5 {
 		return false
 	}

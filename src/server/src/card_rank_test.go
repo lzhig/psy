@@ -157,8 +157,8 @@ func Test_findCardRank(t *testing.T) {
 		},
 		{
 			name:  "straight_flush_TJQKA",
-			args:  args{cards: []uint32{1, 2, 3, 0, 9, 8, 10, 11, 12}, form: []uint32{}, n: 5},
-			want:  []uint32{12, 11, 10, 9, 8},
+			args:  args{cards: []uint32{1, 2, 3, 0, 9, 8, 10, 7, 6, 12}, form: []uint32{}, n: 5},
+			want:  []uint32{10, 9, 8, 7, 6},
 			want1: msg.CardRank_Straight_Flush,
 			want2: true,
 		},

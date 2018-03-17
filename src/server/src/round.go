@@ -180,7 +180,8 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 func (obj *Round) deal() {
 	base.LogInfo("[Round][deal]")
-	cards := dealer.deal()
+	//cards := dealer.deal()
+	cards := []uint32{0, 1, 2, 3, 12, 5, 6, 7, 8, 9, 24, 13, 43, 47, 26, 27, 28, 29, 38, 31, 32, 33, 34, 35, 50, 39}
 
 	obj.handCards[0] = cards[0:gApp.config.Room.DealCardsNum]
 	base.LogInfo("seat 0:", obj.handCards[0])
@@ -308,7 +309,11 @@ func (obj *Round) calculateResult() {
 					// 如果牌型一样，比较牌值
 					n := int(math.Min(float64(len(result.CardGroups[i].Cards)), float64(len(result.CardGroups[i+1].Cards))))
 					for j := 0; j < n; j++ {
-						if result.CardGroups[i].Cards[j]%13 > result.CardGroups[i+1].Cards[j]%13 {
+						a := result.CardGroups[i].Cards[j] % 13
+						b := result.CardGroups[i+1].Cards[j] % 13
+						if a < b {
+							return
+						} else if a > b {
 							result.Foul = true
 							return
 						}
@@ -341,7 +346,23 @@ func (obj *Round) calculateResult() {
 		} else if result.Foul {
 			result.TotalScore = -2
 		} else {
-			result.Scores, result.TotalScore = obj.compareCardGroup(result, bankerResult)
+			var score int32
+			result.Scores, score = obj.compareCardGroup(result, bankerResult)
+			if score == 3 {
+				if result.Ranks[0] >= msg.CardRank_Four_Of_A_Kind {
+					result.TotalScore = 3
+				} else {
+					result.TotalScore = 2
+				}
+			} else if score == 1 {
+				result.TotalScore = 1
+			} else if score == -1 {
+				result.TotalScore = -1
+			} else if score == -3 {
+				result.TotalScore = -2
+			} else {
+				base.LogError("Invalid score")
+			}
 		}
 
 		// 计算输赢积分
@@ -366,17 +387,9 @@ func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
 			num := 3
 			if i != 0 {
 				num = 5
-
-				// 判断A 2 3 4 5
-				if a.Ranks[i] == msg.CardRank_Straight_Flush || a.Ranks[i] == msg.CardRank_Straight {
-					if a.CardGroups[i].Cards[0] == Card_A_Value && a.CardGroups[i].Cards[4] == Card_2_Value {
-
-					}
-				}
 			}
-			base.LogInfo(a.CardGroups, b.CardGroups)
+			base.LogInfo(a.CardGroups[i], b.CardGroups[i])
 			for j := 0; j < num; j++ {
-				base.LogInfo(a.CardGroups[i], b.CardGroups[i])
 				v1 := a.CardGroups[i].Cards[j] % 13
 				v2 := b.CardGroups[i].Cards[j] % 13
 				if v1 > v2 {
