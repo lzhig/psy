@@ -67,6 +67,10 @@ enum MessageID {
 
     // 重连
     Reconnect_Notify = 34;
+
+    // 积分榜
+    GetScoreboard_Req = 35;
+    GetScoreboard_Rsp = 36;
 }
 
 enum ErrorID {
@@ -114,7 +118,9 @@ enum ErrorID {
     Combine_Not_In_This_Round = 181; // 没有参与本局
     Combine_Invalid_Request_Data = 182; // 非法请求数据
     Combine_Already_Done = 183; // 已经提交过了
-    Combine_Not_Lucky = 139; // 不是lucky
+    Combine_Not_Lucky = 184; // 不是lucky
+
+    GetScoreboard_Pos_Exceed_Range = 190; // 起始位置超出总数
 }
 
 message Protocol {
@@ -152,6 +158,8 @@ message Protocol {
     GameStateNotify gameStateNotify = 34;
     DisconnectNotify disconnectNotify = 35;
     ReconnectNotify reconnectNotify = 36;
+    GetScoreboardReq getScoreboardReq = 37;
+    GetScoreboardRsp getScoreboardRsp = 38;
 }
 
 
@@ -399,4 +407,19 @@ enum CardColorSuit {
     Hearts = 2; // 红桃
     Diamonds = 3; // 方块
     Count = 4;
+}
+
+// 积分榜
+message GetScoreboardReq {
+    uint32 pos = 1; // 积分榜起始位置, 最大条数配置在服务端配置文件
+}
+
+message ScoreboardItem {
+    uint32 uid = 1; // uid
+    int32 score = 2; // 积分
+}
+message GetScoreboardRsp {
+    ErrorID ret = 1;
+    uint32 total = 2; // 积分榜总个数
+    repeated ScoreboardItem items = 3; // 当前起始位置开始的积分榜项
 }

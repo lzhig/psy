@@ -41,6 +41,8 @@ func main() {
 					c.sendLeaveRoom()
 				case "ab", "autobanker":
 
+				case "sb", "scoreboard":
+					c.sendGetScorebard()
 				case "h", "help":
 					showHelp()
 				default:
@@ -72,6 +74,7 @@ func showHelp() {
 	su, standup - stand up
 	lr, leaveroom - leave room
 	ab, autobanker - auto banker
+	sb, scoreboard - scoreboard
 	h, help - print help
 	`
 	fmt.Println(str)

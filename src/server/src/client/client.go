@@ -171,6 +171,13 @@ func (obj *client) sendStartGame() {
 	})
 }
 
+func (obj *client) sendGetScorebard() {
+	obj.sendProtocol(&msg.Protocol{
+		Msgid:            msg.MessageID_GetScoreboard_Req,
+		GetScoreboardReq: &msg.GetScoreboardReq{Pos: 0},
+	})
+}
+
 func (obj *client) handleConnection(conn *rapidnet.Connection) {
 	defer base.LogPanic()
 	defer func() {

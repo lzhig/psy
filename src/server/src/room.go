@@ -70,7 +70,8 @@ type Room struct {
 	players      map[uint32]*RoomPlayer // 房间中的玩家
 	tablePlayers []*RoomPlayer          // 入座的玩家
 
-	round Round
+	round      Round
+	scoreboard Scoreboard // 积分榜
 }
 
 func (obj *Room) init() {
@@ -83,14 +84,15 @@ func (obj *Room) init() {
 
 	obj.protoChan = make(chan *ProtocolConnection, 128)
 	obj.protoHandlers = map[msg.MessageID]func(*ProtocolConnection){
-		msg.MessageID_JoinRoom_Req:   obj.handleJoinRoomReq,
-		msg.MessageID_LeaveRoom_Req:  obj.handleLeaveRoomReq,
-		msg.MessageID_SitDown_Req:    obj.handleSitDownReq,
-		msg.MessageID_StandUp_Req:    obj.handleStandUpReq,
-		msg.MessageID_AutoBanker_Req: obj.handleAutoBankerReq,
-		msg.MessageID_StartGame_Req:  obj.handleStartGameReq,
-		msg.MessageID_Bet_Req:        obj.handleBetReq,
-		msg.MessageID_Combine_Req:    obj.handleCombineReq,
+		msg.MessageID_JoinRoom_Req:      obj.handleJoinRoomReq,
+		msg.MessageID_LeaveRoom_Req:     obj.handleLeaveRoomReq,
+		msg.MessageID_SitDown_Req:       obj.handleSitDownReq,
+		msg.MessageID_StandUp_Req:       obj.handleStandUpReq,
+		msg.MessageID_AutoBanker_Req:    obj.handleAutoBankerReq,
+		msg.MessageID_StartGame_Req:     obj.handleStartGameReq,
+		msg.MessageID_Bet_Req:           obj.handleBetReq,
+		msg.MessageID_Combine_Req:       obj.handleCombineReq,
+		msg.MessageID_GetScoreboard_Req: obj.handleGetScoreboardReq,
 	}
 
 	obj.players = make(map[uint32]*RoomPlayer)
@@ -99,8 +101,14 @@ func (obj *Room) init() {
 	obj.round.Init(obj)
 	obj.round.Begin()
 
+	obj.scoreboard.Init(gApp.config.Room.MaxTablePlayers)
+
 	ctx, _ := gApp.CreateCancelContext()
 	gApp.GoRoutine(ctx, obj.loop)
+}
+
+func (obj *Room) nextRound() {
+	obj.playedHands++
 }
 
 // GetProtoChan function
@@ -704,6 +712,32 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 	}
 }
 
+func (obj *Room) handleGetScoreboardReq(p *ProtocolConnection) {
+	req := p.p.GetScoreboardReq
+	rsp := &msg.Protocol{
+		Msgid:            msg.MessageID_GetScoreboard_Rsp,
+		GetScoreboardRsp: &msg.GetScoreboardRsp{Ret: msg.ErrorID_Ok},
+	}
+	rspProto := rsp.GetScoreboardRsp
+	defer p.userconn.sendProtocol(rsp)
+
+	l := uint32(len(obj.scoreboard.Uids))
+	if req.Pos > l {
+		rspProto.Ret = msg.ErrorID_GetScoreboard_Pos_Exceed_Range
+		return
+	}
+	rspProto.Total = l
+	num := uint32(math.Min(float64(l-req.Pos), float64(gApp.config.Room.ScoreboardCountPerTime)))
+	end := req.Pos + num
+	rspProto.Items = make([]*msg.ScoreboardItem, num)
+	for i := req.Pos; i < end; i++ {
+		rspProto.Items[i-req.Pos] = &msg.ScoreboardItem{
+			Uid:   obj.scoreboard.Uids[i],
+			Score: obj.scoreboard.List[obj.scoreboard.Uids[i]],
+		}
+	}
+}
+
 func (obj *Room) getTablePlayersCount() int {
 	ret := 0
 	for _, player := range obj.tablePlayers {
@@ -712,4 +746,8 @@ func (obj *Room) getTablePlayersCount() int {
 		}
 	}
 	return ret
+}
+
+func (obj *Room) updateScoreboard(seatID uint32, score int32) {
+	obj.scoreboard.Update(obj.tablePlayers[seatID].uid, score)
 }

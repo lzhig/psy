@@ -29,15 +29,16 @@ type mysqlConfig struct {
 }
 
 type roomConfig struct {
-	RoomNameLen     int      `json:"room_name_len"`
-	CreditPoints    []uint32 `json:"credit_points"`
-	RoomRate        uint32   `json:"room_rate"`
-	CountCreated    uint32   `json:"count_created"`
-	MaxTablePlayers uint32   `json:"max_table_players"`
-	DealCardsNum    uint32   `json:"deal_cards_num"`
-	MaxPlayers      uint32   `json:"max_players"`
-	MaxBetRate      uint32   `json:"max_bet_rate"`
-	StatesCountdown []uint32 `json:"states_countdown"`
+	RoomNameLen            int      `json:"room_name_len"`
+	CreditPoints           []uint32 `json:"credit_points"`
+	RoomRate               uint32   `json:"room_rate"`
+	CountCreated           uint32   `json:"count_created"`
+	MaxTablePlayers        uint32   `json:"max_table_players"`
+	DealCardsNum           uint32   `json:"deal_cards_num"`
+	MaxPlayers             uint32   `json:"max_players"`
+	MaxBetRate             uint32   `json:"max_bet_rate"`
+	StatesCountdown        []uint32 `json:"states_countdown"`
+	ScoreboardCountPerTime uint32   `json:"scoreboard_count_per_time"`
 }
 
 type userConfig struct {

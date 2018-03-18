@@ -32,7 +32,6 @@ func (obj *Round) Init(room *Room) {
 
 // Begin 一局开始
 func (obj *Round) Begin() {
-	obj.room.playedHands++
 	obj.players = make(map[uint32]*RoomPlayer)
 	obj.betChips = make(map[uint32]uint32)
 	obj.handCards = make(map[uint32][]uint32)
@@ -106,6 +105,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 	switch state {
 	case msg.GameState_Ready:
 		obj.Begin()
+		obj.room.nextRound()
 		obj.room.notifyAll(notify)
 	case msg.GameState_Bet, msg.GameState_Combine:
 		obj.room.notifyAll(notify)
@@ -369,8 +369,11 @@ func (obj *Round) calculateResult() {
 		result.Bet = obj.betChips[result.SeatId]
 		result.Win = result.TotalScore * int32(obj.betChips[result.SeatId])
 		bankerWin += result.Win
+
+		obj.room.updateScoreboard(result.SeatId, result.Win)
 	}
 	obj.result[0].Win = -bankerWin
+	obj.room.updateScoreboard(0, -bankerWin)
 }
 
 func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
