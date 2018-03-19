@@ -280,6 +280,7 @@ message SitDownReq {
 
 message SitDownRsp {
     ErrorID ret = 1;
+    bool autobanker = 2; // 庄家入座时, 返回autobanker的值
 }
 
 enum SitDownType {

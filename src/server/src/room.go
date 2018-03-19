@@ -392,6 +392,11 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 	obj.tablePlayers[seatID] = player
 	player.seatID = int32(seatID)
 
+	if seatID == 0 {
+		obj.autoBanker = true
+		rspProto.Autobanker = obj.autoBanker
+	}
+
 	// 通知房间其他人
 	obj.notifyOthers(p.userconn,
 		&msg.Protocol{
@@ -687,6 +692,7 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 			rspProto.Ret = msg.ErrorID_Combine_Not_Lucky
 			return
 		}
+		obj.round.leftCards[seatID] = obj.round.handCards[seatID]
 	}
 
 	obj.round.result[seatID] = &msg.SeatResult{
