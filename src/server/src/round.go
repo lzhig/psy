@@ -107,6 +107,23 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		obj.Begin()
 		obj.room.nextRound()
 		obj.room.notifyAll(notify)
+
+		// check autobanker
+		if !obj.room.autoBanker {
+			// kick banker
+			player := obj.room.tablePlayers[0]
+			obj.room.tablePlayers[0] = nil
+			player.seatID = -1
+
+			obj.room.notifyAll(
+				&msg.Protocol{
+					Msgid: msg.MessageID_StandUp_Notify,
+					StandUpNotify: &msg.StandUpNotify{
+						Uid:    player.uid,
+						SeatId: uint32(0),
+					}},
+			)
+		}
 	case msg.GameState_Bet, msg.GameState_Combine:
 		obj.room.notifyAll(notify)
 
