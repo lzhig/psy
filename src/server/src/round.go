@@ -77,12 +77,28 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 		case msg.GameState_Show:
 			obj.switchGameState(msg.GameState_Result)
 		case msg.GameState_Result:
-			// 如果是自动连庄
 			if obj.room.playedHands < obj.room.hands {
+				// check autobanker
+				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
 				if obj.room.autoBanker {
+					// 如果是自动连庄
+					obj.Begin()
+					obj.room.nextRound()
 					obj.switchGameState(msg.GameState_Bet)
 				} else {
 					// 庄家站起
+					player := obj.room.tablePlayers[0]
+					obj.room.tablePlayers[0] = nil
+					player.seatID = -1
+
+					obj.room.notifyAll(
+						&msg.Protocol{
+							Msgid: msg.MessageID_StandUp_Notify,
+							StandUpNotify: &msg.StandUpNotify{
+								Uid:    player.uid,
+								SeatId: uint32(0),
+							}},
+					)
 					obj.switchGameState(msg.GameState_Ready)
 				}
 			} else {
@@ -108,22 +124,6 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		obj.room.nextRound()
 		obj.room.notifyAll(notify)
 
-		// check autobanker
-		if !obj.room.autoBanker {
-			// kick banker
-			player := obj.room.tablePlayers[0]
-			obj.room.tablePlayers[0] = nil
-			player.seatID = -1
-
-			obj.room.notifyAll(
-				&msg.Protocol{
-					Msgid: msg.MessageID_StandUp_Notify,
-					StandUpNotify: &msg.StandUpNotify{
-						Uid:    player.uid,
-						SeatId: uint32(0),
-					}},
-			)
-		}
 	case msg.GameState_Bet, msg.GameState_Combine:
 		obj.room.notifyAll(notify)
 

@@ -461,7 +461,7 @@ func (obj *Room) handleAutoBankerReq(p *ProtocolConnection) {
 	defer p.userconn.sendProtocol(rsp)
 
 	// 检查状态
-	if obj.round.state != msg.GameState_Ready && obj.round.state != msg.GameState_Bet {
+	if obj.round.state != msg.GameState_Ready && obj.round.state != msg.GameState_Bet && obj.round.state != msg.GameState_Result {
 		rsp.AutoBankerRsp.Ret = msg.ErrorID_AutoBanker_Invalid_State
 		return
 	}
