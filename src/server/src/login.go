@@ -21,10 +21,14 @@ import (
 type LoginService struct {
 	protoChan chan *ProtocolConnection
 
+	fbChecker FacebookUserCheck
+
 	limitation base.Limitation
 }
 
 func (obj *LoginService) init() {
+	obj.fbChecker.Init()
+
 	obj.limitation.Init(16)
 	obj.protoChan = make(chan *ProtocolConnection, 16)
 	ctx, _ := gApp.CreateCancelContext()
@@ -51,7 +55,7 @@ func (obj *LoginService) loop(ctx context.Context) {
 
 func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 	defer base.LogPanic()
-
+	base.LogInfo(p)
 	obj.limitation.Acquire()
 	defer obj.limitation.Release()
 
@@ -59,7 +63,7 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 		Msgid:    msg.MessageID_Login_Rsp,
 		LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_Invalid_Params},
 	}
-	defer userconn.sendProtocol(rsp)
+	//defer userconn.sendProtocol(rsp)
 
 	errHandle := func(id msg.ErrorID) {
 		rsp.LoginRsp.Ret = id
@@ -71,6 +75,7 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 
 	if p.LoginReq == nil {
 		errHandle(msg.ErrorID_Invalid_Params)
+		userconn.sendProtocol(rsp)
 		return
 	}
 
@@ -79,44 +84,63 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 	case msg.LoginType_Facebook:
 		req := p.LoginReq.Fb
 
-		if !gApp.config.Debug {
-			// call interface to verify valid account
-			return
-		}
-
-		//query if the account is exist in db
-		uid, err := userManager.fbUserExists(req.FbId, req.Name)
-		if err != nil {
-			errHandle(msg.ErrorID_DB_Error)
-			return
-		}
-		if uid == 0 {
-			// if doesn't exist, create account in db
-			uid, err = userManager.fbUserCreate(req.FbId, req.Name, userconn)
+		createUser := func(fbid, name string) {
+			//query if the account is exist in db
+			uid, err := userManager.fbUserExists(fbid, name)
 			if err != nil {
 				errHandle(msg.ErrorID_DB_Error)
+				userconn.sendProtocol(rsp)
 				return
 			}
-		} else {
-			// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
-			if userManager.userIsConnected(uid) {
-				userManager.setUserConnection(uid, userconn)
-			} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
-				// 如果是用户断线重连
-				rsp.LoginRsp.RoomId = room.roomID
-			} else if err := userManager.createUser(uid, userconn); err != nil {
-				// create user
-				errHandle(msg.ErrorID_DB_Error)
-				return
+			if uid == 0 {
+				// if doesn't exist, create account in db
+				uid, err = userManager.fbUserCreate(fbid, name, userconn)
+				if err != nil {
+					errHandle(msg.ErrorID_DB_Error)
+					userconn.sendProtocol(rsp)
+					return
+				}
+			} else {
+				// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
+				if userManager.userIsConnected(uid) {
+					userManager.setUserConnection(uid, userconn)
+				} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
+					// 如果是用户断线重连
+					rsp.LoginRsp.RoomId = room.roomID
+				} else if err := userManager.createUser(uid, userconn); err != nil {
+					// create user
+					errHandle(msg.ErrorID_DB_Error)
+					userconn.sendProtocol(rsp)
+					return
+				}
 			}
+
+			userconn.uid = uid
+			userconn.name = name
+			rsp.LoginRsp.Ret = msg.ErrorID_Ok
+			rsp.LoginRsp.Uid = uint32(uid)
+			rsp.LoginRsp.Name = name
+			userconn.sendProtocol(rsp)
 		}
 
-		//uid := uint32(111)
+		if !gApp.config.Debug {
+			// call interface to verify valid account
+			user := &FacebookUser{Fbid: req.FbId, Token: req.Token}
+			obj.fbChecker.Check(user, func(user *FacebookUser, result bool, reason string) {
+				if !result {
+					errHandle(msg.ErrorID_Login_Facebook_Failed)
+					base.LogError(user, "failed to login facebook. reason:", reason)
+					userconn.sendProtocol(rsp)
+					return
+				}
 
-		userconn.uid = uid
-		userconn.name = req.Name
-		rsp.LoginRsp.Ret = msg.ErrorID_Ok
-		rsp.LoginRsp.Uid = uint32(uid)
+				createUser(user.Fbid, user.Name)
+			})
+			return
+		}
+
+		//debug
+		createUser(req.FbId, req.FbId)
 
 	default:
 		errHandle(msg.ErrorID_Invalid_Params)
@@ -125,6 +149,10 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 }
 
 func sendProtocol(conn *rapidnet.Connection, p *msg.Protocol) {
+	if conn == nil {
+		return
+	}
+	base.LogInfo(p)
 	data, err := proto.Marshal(p)
 	if err != nil {
 		base.LogError("Failed to marshal. p:", p, "error:", err)

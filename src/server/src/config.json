@@ -1,6 +1,6 @@
 {
     "version":"0.0.1",
-    "debug":true,
+    "debug":false,
     "cpu_num":4,
     "server":{
         "addr":"0.0.0.0:8010",

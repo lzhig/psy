@@ -79,6 +79,8 @@ enum ErrorID {
     DB_Error = 2; // db error
     Internal_Error = 3; // 内部错误
 
+    Login_Facebook_Failed = 4; // facebook登录失败
+
     CreateRoom_Invalid_Room_Name = 100; // 非法的房间名称
     CreateRoom_Invalid_Min_Max_Bet = 101; // 非法的最小最大下注设置
     CreateRoom_Invalid_Credit_Points = 102; // 非法的credit points
@@ -171,7 +173,7 @@ enum LoginType {
 message LoginFBReq {
     string fb_id = 1; // facebook id
     string token = 2; // facebook token
-    string name = 3; // facebook username
+    //string name = 3; // facebook username
 }
 
 message LoginReq {
@@ -182,7 +184,8 @@ message LoginReq {
 message LoginRsp {
     ErrorID ret = 1;
     uint32 uid = 2;
-    uint32 room_id = 3; // 如果用户在房间中，返回房间id，否则返回0
+    string name = 3;
+    uint32 room_id = 4; // 如果用户在房间中，返回房间id，否则返回0
 }
 
 // kick

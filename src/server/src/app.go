@@ -80,6 +80,11 @@ func (obj *App) Init() error {
 
 	base.LogInfo("init done.")
 
+	// a := `{"error":{"message":"Unsupported get request. Object with ID '1637239499921854' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https:\/\/developers.facebook.com\/docs\/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"BlfdHAICYcb"}}`
+	// b := checkResult{}
+	// err = json.Unmarshal([]byte(a), &b)
+	// fmt.Println(err, b)
+
 	return nil
 }
 
