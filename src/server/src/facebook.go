@@ -20,6 +20,23 @@ type FacebookUser struct {
 	callback FacebookUserCheckCallback
 }
 
+// GetAvatarURL 获取头像url
+func (obj *FacebookUser) GetAvatarURL() string {
+	return fmt.Sprintf("http://graph.facebook.com/%s/picture?type=large", obj.Fbid)
+}
+
+// GetUID 获取uid
+func (obj *FacebookUser) GetUID() (uint32, error) {
+	return db.getUIDFacebook(obj.Fbid)
+}
+
+func (obj *FacebookUser) SaveToDB(uid uint32) error {
+	return db.AddFacebookUser(obj.Fbid, uid)
+}
+
+func (obj *FacebookUser) GetPlatformID() uint32 { return 0 }
+func (obj *FacebookUser) GetName() string       { return obj.Name }
+
 // FacebookUserCheck 验证facebook用户合法性
 type FacebookUserCheck struct {
 	list chan *FacebookUser

@@ -6,12 +6,14 @@ import (
 
 // Scoreboard type
 type Scoreboard struct {
-	List map[uint32]int32
-	Uids []uint32
+	roomID uint32
+	List   map[uint32]int32
+	Uids   []uint32
 }
 
 // Init 初始化
-func (obj *Scoreboard) Init(playerNum uint32) {
+func (obj *Scoreboard) Init(roomID uint32, playerNum uint32) {
+	obj.roomID = roomID
 	obj.List = make(map[uint32]int32)
 	obj.Uids = make([]uint32, 0, playerNum)
 }
@@ -32,4 +34,13 @@ func (obj *Scoreboard) sort() {
 	sort.Slice(obj.Uids, func(i, j int) bool {
 		return obj.List[obj.Uids[i]] > obj.List[obj.Uids[j]]
 	})
+}
+
+// todo: 积分榜 每局的更新 加载房间时的读取
+func (obj *Scoreboard) load() error {
+	return nil
+}
+
+func (obj *Scoreboard) updateToDB() {
+
 }

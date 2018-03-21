@@ -33,6 +33,7 @@ type roomEvent struct {
 type RoomPlayer struct {
 	uid    uint32
 	name   string
+	avatar string
 	conn   *userConnection
 	seatID int32 // -1 没有入座
 }
@@ -101,7 +102,7 @@ func (obj *Room) init() {
 	obj.round.Init(obj)
 	obj.round.Begin()
 
-	obj.scoreboard.Init(gApp.config.Room.MaxTablePlayers)
+	obj.scoreboard.Init(obj.roomID, gApp.config.Room.MaxTablePlayers)
 
 	ctx, _ := gApp.CreateCancelContext()
 	gApp.GoRoutine(ctx, obj.loop)
@@ -190,7 +191,7 @@ func (obj *Room) handleEventGameStateTimeout(args []interface{}) {
 
 func (obj *Room) notifyOthers(userconn *userConnection, p *msg.Protocol) {
 	for uid, player := range obj.players {
-		if uid == userconn.uid || player.conn == nil {
+		if uid == userconn.user.uid || player.conn == nil {
 			continue
 		}
 
@@ -213,7 +214,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 
 	isNewPlayer := true
 	seatID := int32(0)
-	if player, ok := obj.players[p.userconn.uid]; ok {
+	if player, ok := obj.players[p.userconn.user.uid]; ok {
 		isNewPlayer = false
 		player.conn = p.userconn
 		seatID = player.seatID
@@ -223,7 +224,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 			&msg.Protocol{
 				Msgid: msg.MessageID_Reconnect_Notify,
 				ReconnectNotify: &msg.ReconnectNotify{
-					Uid: p.userconn.uid,
+					Uid: p.userconn.user.uid,
 				}},
 		)
 	} else {
@@ -234,15 +235,16 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		}
 
 		player := &RoomPlayer{
-			uid:    p.userconn.uid,
-			name:   p.userconn.name,
+			uid:    p.userconn.user.uid,
+			name:   p.userconn.user.name,
+			avatar: p.userconn.user.platformUser.GetAvatarURL(),
 			conn:   p.userconn,
 			seatID: -1,
 		}
 		seatID = -1
 
-		obj.players[p.userconn.uid] = player
-		userManager.enterRoom(p.userconn.uid, obj)
+		obj.players[p.userconn.user.uid] = player
+		userManager.enterRoom(p.userconn.user.uid, obj)
 	}
 
 	rsp.JoinRoomRsp.Room = &msg.Room{
@@ -285,6 +287,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		p := &msg.Player{
 			Uid:    player.uid,
 			Name:   player.name,
+			Avatar: player.avatar,
 			SeatId: player.seatID,
 		}
 		if player.seatID > 0 {
@@ -302,8 +305,8 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 			&msg.Protocol{
 				Msgid: msg.MessageID_JoinRoom_Notify,
 				JoinRoomNotify: &msg.JoinRoomNotify{
-					Uid:  p.userconn.uid,
-					Name: p.userconn.name,
+					Uid:  p.userconn.user.uid,
+					Name: p.userconn.user.name,
 				}},
 		)
 	}
@@ -318,7 +321,7 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
-	if _, ok := obj.players[p.userconn.uid]; !ok {
+	if _, ok := obj.players[p.userconn.user.uid]; !ok {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
 		return
 	}
@@ -327,16 +330,16 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 
 	// 如果可以离座，就先离座
 
-	delete(obj.players, p.userconn.uid)
-	debug("leave room. uid:", p.userconn.uid)
-	userManager.leaveRoom(p.userconn.uid, obj)
+	delete(obj.players, p.userconn.user.uid)
+	debug("leave room. uid:", p.userconn.user.uid)
+	userManager.leaveRoom(p.userconn.user.uid, obj)
 
 	// 通知房间其他人
 	obj.notifyAll(
 		&msg.Protocol{
 			Msgid: msg.MessageID_LeaveRoom_Notify,
 			LeaveRoomNotify: &msg.LeaveRoomNotify{
-				Uid: p.userconn.uid,
+				Uid: p.userconn.user.uid,
 			}},
 	)
 
@@ -362,9 +365,9 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 
 	// todo: 检查状态
 
-	player := obj.players[p.userconn.uid]
+	player := obj.players[p.userconn.user.uid]
 	if player == nil {
-		base.LogError("[Room][handleSitDownReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleSitDownReq] cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -403,7 +406,7 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 			Msgid: msg.MessageID_SitDown_Notify,
 			SitDownNotify: &msg.SitDownNotify{
 				Type:      sitDownType,
-				Uid:       p.userconn.uid,
+				Uid:       p.userconn.user.uid,
 				SeatId:    seatID,
 				OldSeatId: int32(oldSeatID),
 			}},
@@ -425,9 +428,9 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 		return
 	}
 
-	player := obj.players[p.userconn.uid]
+	player := obj.players[p.userconn.user.uid]
 	if player == nil {
-		base.LogError("[Room][handleStandUpReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleStandUpReq] cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -442,7 +445,7 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 		&msg.Protocol{
 			Msgid: msg.MessageID_StandUp_Notify,
 			StandUpNotify: &msg.StandUpNotify{
-				Uid:    p.userconn.uid,
+				Uid:    p.userconn.user.uid,
 				SeatId: uint32(player.seatID),
 			}},
 	)
@@ -467,7 +470,7 @@ func (obj *Room) handleAutoBankerReq(p *ProtocolConnection) {
 	}
 
 	// 检查是不是庄家
-	if obj.tablePlayers[0] == nil || obj.tablePlayers[0].uid != p.userconn.uid {
+	if obj.tablePlayers[0] == nil || obj.tablePlayers[0].uid != p.userconn.user.uid {
 		rsp.AutoBankerRsp.Ret = msg.ErrorID_AutoBanker_Not_Banker
 		return
 	}
@@ -490,7 +493,7 @@ func (obj *Room) handleStartGameReq(p *ProtocolConnection) {
 		}
 
 		// 检查是不是庄家
-		if obj.tablePlayers[0] == nil || obj.tablePlayers[0].uid != p.userconn.uid {
+		if obj.tablePlayers[0] == nil || obj.tablePlayers[0].uid != p.userconn.user.uid {
 			rsp.StartGameRsp.Ret = msg.ErrorID_StartGame_Not_Banker
 			return false
 		}
@@ -547,9 +550,9 @@ func (obj *Room) handleBetReq(p *ProtocolConnection) {
 	}
 
 	// 是否入座
-	player := obj.players[p.userconn.uid]
+	player := obj.players[p.userconn.user.uid]
 	if player == nil {
-		base.LogError("[Room][handleBetReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleBetReq] cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}
@@ -602,9 +605,9 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 	}
 
 	// 是否参与本局
-	player := obj.players[p.userconn.uid]
+	player := obj.players[p.userconn.user.uid]
 	if player == nil {
-		base.LogError("[Room][handleCombineReq] cannot find this player in the room. uid:", p.userconn.uid, ". room:", obj.roomID)
+		base.LogError("[Room][handleCombineReq] cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
 		return
 	}

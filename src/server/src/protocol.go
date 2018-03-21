@@ -35,7 +35,7 @@ func (obj *protocolHandler) init() {
 
 func (obj *protocolHandler) handle(p *ProtocolConnection) {
 	if f, ok := obj.dispatcher[p.p.Msgid]; ok {
-		base.LogInfo("received msgid:", msg.MessageID_name[int32(p.p.Msgid)], ", uid:", p.userconn.uid)
+		base.LogInfo("received msgid:", msg.MessageID_name[int32(p.p.Msgid)], ", user:", p.userconn.user)
 		f(p)
 	} else {
 		base.LogError("[protocolHandler][dispatch] cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])

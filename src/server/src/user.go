@@ -17,12 +17,39 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+// PlatformUser 平台用户接口
+type PlatformUser interface {
+	GetPlatformID() uint32
+	GetAvatarURL() string
+	GetUID() (uint32, error)
+	GetName() string
+	SaveToDB(uint32) error
+}
+
+type LocalUser struct {
+	id   string
+	name string
+}
+
+func (obj *LocalUser) GetAvatarURL() string { return "" }
+func (obj *LocalUser) GetUID() (uint32, error) {
+	return db.getUIDFacebook(obj.id)
+}
+func (obj *LocalUser) SaveToDB(uid uint32) error {
+	return db.AddFacebookUser(obj.id, uid)
+}
+
+func (obj *LocalUser) GetPlatformID() uint32 { return 0 }
+func (obj *LocalUser) GetName() string       { return obj.name }
+
 // The User type represents a player
 type User struct {
 	sync.RWMutex
 	uid      uint32
 	name     string // 名字
 	diamonds uint32 // 钻石
+
+	platformUser PlatformUser
 
 	conn *userConnection // 用户的连接
 	room *Room           // 所在房间
@@ -38,29 +65,68 @@ func (obj *UserManager) init() {
 	//obj.users = make(map[uint32]*User)
 }
 
-func (obj *UserManager) fbUserExists(fbID, name string) (uint32, error) {
-	return db.getUIDFacebook(fbID, name)
+func (obj *UserManager) loadUser(user PlatformUser) error {
+	return nil
 }
 
-func (obj *UserManager) fbUserCreate(fbID, name string, conn *userConnection) (uint32, error) {
-	uid, err := db.createFacebookUser(fbID, name, gApp.config.User.InitDiamonds)
+// func (obj *UserManager) fbUserExists(fbID, name string) (uint32, error) {
+// 	return db.getUIDFacebook(fbID, name)
+// }
+
+func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
+	uid, err := db.CreateUser(pu.GetName(), pu.GetPlatformID(), gApp.config.User.InitDiamonds)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	if err := obj.createUser(uid, conn); err != nil {
-		return 0, err
+	if err := pu.SaveToDB(uid); err != nil {
+		base.LogError("[UserManager][CreateUser] Failed to Save to db. uid:", uid, ", user:", pu)
+		return nil, err
 	}
-
-	return uid, nil
+	user, err := obj.createUser(uid, conn)
+	if err == nil {
+		user.platformUser = pu
+		return user, err
+	}
+	return nil, err
 }
 
-func (obj *UserManager) createUser(uid uint32, conn *userConnection) error {
+// func (obj *UserManager) fbUserCreate(fbID, name string, conn *userConnection) (uint32, error) {
+// 	uid, err := db.createFacebookUser(fbID, name, gApp.config.User.InitDiamonds)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	if err := obj.createUser(uid, conn); err != nil {
+// 		return 0, err
+// 	}
+
+// 	return uid, nil
+// }
+
+func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnection) (*User, error) {
+	user, err := obj.createUser(uid, conn)
+	if err == nil {
+		user.platformUser = pu
+		user.name = pu.GetName()
+		return user, err
+	}
+	return nil, err
+}
+
+func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
 	name, diamonds, err := db.getUserData(uid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	obj.users.Store(uid, &User{uid: uid, name: name, diamonds: diamonds, conn: conn})
+	user := &User{uid: uid, name: name, diamonds: diamonds, conn: conn}
+	obj.users.Store(uid, user)
+	return user, nil
+}
+
+func (obj *UserManager) GetUser(uid uint32) *User {
+	if v, ok := obj.users.Load(uid); ok {
+		return v.(*User)
+	}
 	return nil
 }
 

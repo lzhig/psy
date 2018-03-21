@@ -84,17 +84,20 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 	case msg.LoginType_Facebook:
 		req := p.LoginReq.Fb
 
-		createUser := func(fbid, name string) {
+		var u *User
+		createUser := func(user PlatformUser) {
 			//query if the account is exist in db
-			uid, err := userManager.fbUserExists(fbid, name)
+			uid, err := user.GetUID()
 			if err != nil {
 				errHandle(msg.ErrorID_DB_Error)
 				userconn.sendProtocol(rsp)
 				return
 			}
+
 			if uid == 0 {
 				// if doesn't exist, create account in db
-				uid, err = userManager.fbUserCreate(fbid, name, userconn)
+				u, err = userManager.CreateUser(user, userconn)
+				// uid, err = userManager.fbUserCreate(fbid, name, userconn)
 				if err != nil {
 					errHandle(msg.ErrorID_DB_Error)
 					userconn.sendProtocol(rsp)
@@ -102,24 +105,35 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 				}
 			} else {
 				// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
-				if userManager.userIsConnected(uid) {
-					userManager.setUserConnection(uid, userconn)
-				} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
-					// 如果是用户断线重连
-					rsp.LoginRsp.RoomId = room.roomID
-				} else if err := userManager.createUser(uid, userconn); err != nil {
-					// create user
-					errHandle(msg.ErrorID_DB_Error)
-					userconn.sendProtocol(rsp)
-					return
+				u = userManager.GetUser(uid)
+				if u == nil {
+					u, err = userManager.LoadUser(user, uid, userconn)
+					if err != nil {
+						errHandle(msg.ErrorID_DB_Error)
+						userconn.sendProtocol(rsp)
+						return
+					}
+				} else {
+					if userManager.userIsConnected(uid) {
+						userManager.setUserConnection(uid, userconn)
+					} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
+						// 如果是用户断线重连
+						rsp.LoginRsp.RoomId = room.roomID
+					}
+
+					u.platformUser = user
+					u.name = user.GetName()
+
 				}
+				db.UpdateName(uid, u.name)
 			}
 
-			userconn.uid = uid
-			userconn.name = name
+			userconn.user = u
+
 			rsp.LoginRsp.Ret = msg.ErrorID_Ok
 			rsp.LoginRsp.Uid = uint32(uid)
-			rsp.LoginRsp.Name = name
+			rsp.LoginRsp.Name = u.name
+			rsp.LoginRsp.Avatar = u.platformUser.GetAvatarURL()
 			userconn.sendProtocol(rsp)
 		}
 
@@ -134,13 +148,14 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 					return
 				}
 
-				createUser(user.Fbid, user.Name)
+				createUser(user)
 			})
 			return
 		}
 
 		//debug
-		createUser(req.FbId, req.FbId)
+		user := &LocalUser{id: req.FbId, name: req.FbId}
+		createUser(user)
 
 	default:
 		errHandle(msg.ErrorID_Invalid_Params)

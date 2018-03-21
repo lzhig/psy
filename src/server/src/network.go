@@ -78,8 +78,8 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 	}
 	userconn := args[0].(*userConnection)
 	defer func() {
-		if userconn.uid != 0 {
-			userManager.userDisconnect(userconn.uid, userconn)
+		if userconn.user != nil {
+			userManager.userDisconnect(userconn.user.uid, userconn)
 		}
 	}()
 	for {
@@ -99,7 +99,7 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 			}
 
 			// 如果没有登录，不处理其他协议
-			if userconn.uid == 0 && p.Msgid != msg.MessageID_Login_Req {
+			if userconn.user == nil && p.Msgid != msg.MessageID_Login_Req {
 				base.LogWarn("receive request while no login. address:", userconn.conn.RemoteAddr().String())
 				userconn.Disconnect()
 				return
@@ -111,8 +111,9 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 }
 
 type userConnection struct {
-	uid  uint32
-	name string
+	//uid uint32
+	//name string
+	user *User
 	conn *rapidnet.Connection
 	room *Room
 }

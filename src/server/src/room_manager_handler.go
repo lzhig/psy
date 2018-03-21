@@ -53,7 +53,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	}
 
 	// 创建的房间达到上限
-	count, err := db.getRoomCreatedCount(p.userconn.uid)
+	count, err := db.getRoomCreatedCount(p.userconn.user.uid)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -67,7 +67,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	// 扣钻石
 	if //req.Hands > 0 && // 目前不支持无限局
 	!req.IsShare &&
-		!userManager.consumeDiamonds(p.userconn.uid, gApp.config.Room.RoomRate*req.Hands, "create room") {
+		!userManager.consumeDiamonds(p.userconn.user.uid, gApp.config.Room.RoomRate*req.Hands, "create room") {
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Not_Enough_Diamonds
 		return
 	}
@@ -78,7 +78,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 		return
 	}
 
-	room, err := obj.createRoom(number, req.Name, p.userconn.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
+	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -126,7 +126,7 @@ func (obj *RoomManager) handleLeaveRoomReq(p *ProtocolConnection) {
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 
-	room := userManager.getUserRoom(p.userconn.uid)
+	room := userManager.getUserRoom(p.userconn.user.uid)
 	if room == nil {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
 		p.userconn.sendProtocol(rsp)

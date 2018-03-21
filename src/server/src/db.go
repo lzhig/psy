@@ -28,23 +28,52 @@ func (obj *mysqlDB) close() {
 }
 
 // 查找fbid，如果存在更新name
-func (obj *mysqlDB) getUIDFacebook(fbID, name string) (uint32, error) {
+func (obj *mysqlDB) getUIDFacebook(fbID string) (uint32, error) {
 	var uid uint32
 	err := obj.db.QueryRow("select uid from facebook_users where fbid=?", fbID).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
 		return 0, nil
 	case err != nil:
-		base.LogError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID, ", name:", name)
+		base.LogError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID)
 		return 0, err
 	default:
-		_, err := obj.db.Exec("update users set name=? where uid=?", name, uid)
-		if err != nil {
-			base.LogWarn("[mysql][getUIDFacebook] update name, error:", err, "uid:", uid, ", name:", name)
-		}
+		// _, err := obj.db.Exec("update users set name=? where uid=?", name, uid)
+		// if err != nil {
+		// 	base.LogWarn("[mysql][getUIDFacebook] update name, error:", err, "uid:", uid, ", name:", name)
+		// }
 
 		return uid, nil
 	}
+}
+
+func (obj *mysqlDB) AddFacebookUser(fbID string, uid uint32) error {
+	_, err := obj.db.Exec("insert into facebook_users (uid,fbid) values(?,?)",
+		uid, fbID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (obj *mysqlDB) UpdateName(uid uint32, name string) error {
+	_, err := obj.db.Exec("update users set name=? where uid=? and name<>? ",
+		name, uid, name)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (obj *mysqlDB) CreateUser(name string, diamonds uint32, platformID uint32) (uint32, error) {
+	result, err := obj.db.Exec("insert into users (`name`,platform,regtime,logintime,diamonds) values(?,?,UNIX_TIMESTAMP(NOW()),?)",
+		name, platformID, diamonds)
+	if err != nil {
+		return 0, err
+	}
+
+	id, _ := result.LastInsertId()
+	return uint32(id), nil
 }
 
 func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint32, error) {

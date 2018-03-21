@@ -185,7 +185,8 @@ message LoginRsp {
     ErrorID ret = 1;
     uint32 uid = 2;
     string name = 3;
-    uint32 room_id = 4; // 如果用户在房间中，返回房间id，否则返回0
+    string avatar = 4;
+    uint32 room_id = 5; // 如果用户在房间中，返回房间id，否则返回0
 }
 
 // kick
@@ -228,8 +229,9 @@ message ConsumeDiamondsNotify {
 message Player {
     uint32 uid = 1; // uid
     string name = 2; // 名字
-    int32 seat_id = 3; // 座位
-    uint32 bet = 4; // 已下注额
+    string avatar = 3; // 头像
+    int32 seat_id = 4; // 座位
+    uint32 bet = 5; // 已下注额
 }
 
 
@@ -262,6 +264,7 @@ message JoinRoomRsp {
 message JoinRoomNotify {
     uint32 uid = 1;
     string name = 2;
+    string avatar = 3;
 }
 
 // leave room
@@ -420,7 +423,9 @@ message GetScoreboardReq {
 
 message ScoreboardItem {
     uint32 uid = 1; // uid
-    int32 score = 2; // 积分
+    string name = 2; // name
+    string avatar = 3; // 头像
+    int32 score = 4; // 积分
 }
 message GetScoreboardRsp {
     ErrorID ret = 1;
