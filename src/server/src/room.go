@@ -289,11 +289,13 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 
 	i := 0
 	for _, player := range obj.players {
+		score := obj.scoreboard.GetScore(player.uid)
 		p := &msg.Player{
 			Uid:    player.uid,
 			Name:   player.name,
 			Avatar: player.avatar,
 			SeatId: player.seatID,
+			Score:  score,
 		}
 		if player.seatID > 0 {
 			p.Bet = obj.round.betChips[uint32(player.seatID)]

@@ -21,6 +21,13 @@ func (obj *Scoreboard) Init(roomID uint32, playerNum uint32) {
 	obj.Uids = make([]uint32, 0, playerNum)
 }
 
+func (obj *Scoreboard) GetScore(uid uint32) int32 {
+	if item, ok := obj.List[uid]; ok {
+		return item.Score
+	}
+	return 0
+}
+
 // Update function 更新积分榜
 func (obj *Scoreboard) Update(uid uint32, name, avatar string, score int32) {
 	if _, ok := obj.List[uid]; ok {

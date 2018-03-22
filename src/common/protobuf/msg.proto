@@ -232,6 +232,7 @@ message Player {
     string avatar = 3; // 头像
     int32 seat_id = 4; // 座位
     uint32 bet = 5; // 已下注额
+    int32 score = 6; // 积分
 }
 
 
