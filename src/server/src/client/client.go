@@ -89,7 +89,6 @@ func (obj *client) sendLoginReq() {
 				Fb: &msg.LoginFBReq{
 					FbId:  obj.fbID,
 					Token: "",
-					Name:  fmt.Sprintf("name_%s", obj.fbID),
 				},
 			},
 		})
@@ -101,7 +100,7 @@ func (obj *client) sendCreateRoom() {
 			Msgid: msg.MessageID_CreateRoom_Req,
 			CreateRoomReq: &msg.CreateRoomReq{
 				Name:         "fight",
-				MinBet:       50,
+				MinBet:       5,
 				MaxBet:       100,
 				Hands:        10,
 				CreditPoints: 0,
@@ -110,7 +109,8 @@ func (obj *client) sendCreateRoom() {
 		})
 }
 
-func (obj *client) sendJoinRoom() {
+func (obj *client) sendJoinRoom(number int) {
+	obj.roomNumber = uint32(number)
 	log(obj, "join room: %d", obj.roomNumber)
 	obj.sendProtocol(
 		&msg.Protocol{

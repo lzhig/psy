@@ -47,6 +47,7 @@ type User struct {
 	sync.RWMutex
 	uid      uint32
 	name     string // 名字
+	avatar   string // 头像
 	diamonds uint32 // 钻石
 
 	platformUser PlatformUser
@@ -74,7 +75,7 @@ func (obj *UserManager) loadUser(user PlatformUser) error {
 // }
 
 func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
-	uid, err := db.CreateUser(pu.GetName(), pu.GetPlatformID(), gApp.config.User.InitDiamonds)
+	uid, err := db.CreateUser(pu.GetName(), pu.GetAvatarURL(), gApp.config.User.InitDiamonds, pu.GetPlatformID())
 	if err != nil {
 		return nil, err
 	}
@@ -113,12 +114,12 @@ func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnecti
 }
 
 func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
-	name, diamonds, err := db.getUserData(uid)
+	name, avatar, diamonds, err := db.getUserData(uid)
 	if err != nil {
 		return nil, err
 	}
 
-	user := &User{uid: uid, name: name, diamonds: diamonds, conn: conn}
+	user := &User{uid: uid, name: name, avatar: avatar, diamonds: diamonds, conn: conn}
 	obj.users.Store(uid, user)
 	return user, nil
 }

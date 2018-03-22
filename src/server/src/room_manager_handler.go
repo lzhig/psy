@@ -113,7 +113,7 @@ func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
 			p.userconn.sendProtocol(rsp)
 			return
 		default:
-			room = obj.createRoomBase(name, reqRoomNum, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare)
+			room = obj.createRoomBase(name, reqRoomNum, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare, true)
 		}
 
 	}

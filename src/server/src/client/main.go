@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 )
 
 func main() {
@@ -25,10 +27,26 @@ func main() {
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
 			for {
-				cmd, _, _ := reader.ReadLine()
-				switch string(cmd) {
+				line, _, _ := reader.ReadLine()
+				words := strings.Split(string(line), " ")
+				count := len(words)
+				if count == 0 {
+					showHelp()
+					continue
+				}
+				cmd := words[0]
+				switch cmd {
+				case "cr", "createroom":
+					c.sendCreateRoom()
 				case "jr", "joinroom":
-					c.sendJoinRoom()
+					if count > 1 {
+
+						if number, err := strconv.Atoi(words[1]); err != nil {
+							continue
+						} else {
+							c.sendJoinRoom(number)
+						}
+					}
 				case "sd", "sitdown":
 					c.sendSitDown()
 				case "sg", "startgame":
@@ -67,6 +85,7 @@ func main() {
 func showHelp() {
 	str :=
 		`commands list:
+	cr, createroom - create room
 	jr, joinroom - join room
 	sd, sitdown - sit down
 	sg, startgame - start game

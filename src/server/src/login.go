@@ -119,6 +119,8 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 					} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
 						// 如果是用户断线重连
 						rsp.LoginRsp.RoomId = room.roomID
+					} else {
+						u.conn = userconn
 					}
 
 					u.platformUser = user
@@ -133,7 +135,7 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 			rsp.LoginRsp.Ret = msg.ErrorID_Ok
 			rsp.LoginRsp.Uid = uint32(uid)
 			rsp.LoginRsp.Name = u.name
-			rsp.LoginRsp.Avatar = u.platformUser.GetAvatarURL()
+			rsp.LoginRsp.Avatar = u.avatar
 			userconn.sendProtocol(rsp)
 		}
 

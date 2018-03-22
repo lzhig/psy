@@ -58,12 +58,12 @@ func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxB
 		return nil, err
 	}
 
-	room := obj.createRoomBase(name, num, roomID, uid, hands, 0, minBet, maxBet, creditPoints, isShare)
+	room := obj.createRoomBase(name, num, roomID, uid, hands, 0, minBet, maxBet, creditPoints, isShare, false)
 
 	return room, nil
 }
 
-func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool) *Room {
+func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool, bLoadScoreboard bool) *Room {
 	room := &Room{
 		name:         name,
 		roomID:       roomID,
@@ -81,6 +81,6 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 	}
 	obj.rooms.Store(roomID, room)
 	obj.roomsNumber[num] = room
-	room.init()
+	room.init(bLoadScoreboard)
 	return room
 }

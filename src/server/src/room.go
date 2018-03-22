@@ -75,7 +75,7 @@ type Room struct {
 	scoreboard Scoreboard // 积分榜
 }
 
-func (obj *Room) init() {
+func (obj *Room) init(bLoadScoreboard bool) {
 	obj.eventChan = make(chan *roomEvent, 16)
 	obj.eventHandlers = map[int]func([]interface{}){
 		roomEventUserDisconnect:   obj.handleEventUserDisconnect,
@@ -103,6 +103,11 @@ func (obj *Room) init() {
 	obj.round.Begin()
 
 	obj.scoreboard.Init(obj.roomID, gApp.config.Room.MaxTablePlayers)
+	if bLoadScoreboard {
+		if err := obj.scoreboard.Load(); err != nil {
+			base.LogError("[Room][Init] Failed to load scoreboard. error:", err)
+		}
+	}
 
 	ctx, _ := gApp.CreateCancelContext()
 	gApp.GoRoutine(ctx, obj.loop)
@@ -740,10 +745,11 @@ func (obj *Room) handleGetScoreboardReq(p *ProtocolConnection) {
 	end := req.Pos + num
 	rspProto.Items = make([]*msg.ScoreboardItem, num)
 	for i := req.Pos; i < end; i++ {
-		rspProto.Items[i-req.Pos] = &msg.ScoreboardItem{
-			Uid:   obj.scoreboard.Uids[i],
-			Score: obj.scoreboard.List[obj.scoreboard.Uids[i]],
-		}
+		// rspProto.Items[i-req.Pos] = &msg.ScoreboardItem{
+		// 	Uid:   obj.scoreboard.Uids[i],
+		// 	Score: obj.scoreboard.List[obj.scoreboard.Uids[i]].Score,
+		// }
+		rspProto.Items[i-req.Pos] = obj.scoreboard.List[obj.scoreboard.Uids[i]]
 	}
 }
 
@@ -758,5 +764,6 @@ func (obj *Room) getTablePlayersCount() int {
 }
 
 func (obj *Room) updateScoreboard(seatID uint32, score int32) {
-	obj.scoreboard.Update(obj.tablePlayers[seatID].uid, score)
+	player := obj.tablePlayers[seatID]
+	obj.scoreboard.Update(player.uid, player.name, player.avatar, score)
 }

@@ -1,6 +1,6 @@
 /*
 SQLyog Ultimate v12.5.0 (64 bit)
-MySQL - 5.7.21 : Database - pusoy
+MySQL - 5.7.21-log : Database - pusoy
 *********************************************************************
 */
 
@@ -57,8 +57,20 @@ CREATE TABLE `room_records` (
   `close_time` int(10) unsigned NOT NULL COMMENT 'close time',
   `closed` tinyint(1) DEFAULT NULL COMMENT '是否已关闭',
   PRIMARY KEY (`room_id`),
-  KEY `index_number` (`number`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8;
+  KEY `index_number_closed` (`number`,`closed`),
+  KEY `index_owner_closed` (`owner_uid`,`closed`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `scoreboard` */
+
+DROP TABLE IF EXISTS `scoreboard`;
+
+CREATE TABLE `scoreboard` (
+  `roomid` int(10) unsigned NOT NULL,
+  `uid` int(10) unsigned NOT NULL,
+  `score` int(11) DEFAULT NULL,
+  KEY `roomid_uid_index` (`roomid`,`uid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `users` */
 
@@ -66,37 +78,14 @@ DROP TABLE IF EXISTS `users`;
 
 CREATE TABLE `users` (
   `uid` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(16) NOT NULL COMMENT '名字',
+  `name` varchar(64) NOT NULL COMMENT '名字',
+  `avatar` varchar(255) NOT NULL,
+  `diamonds` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '钻石',
   `platform` int(10) unsigned NOT NULL COMMENT '0-fb',
   `regtime` int(11) unsigned NOT NULL COMMENT '注册时间',
   `logintime` int(11) unsigned NOT NULL COMMENT '登录时间',
-  `diamonds` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '钻石',
   PRIMARY KEY (`uid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=100000 DEFAULT CHARSET=utf8;
-
-/* Procedure structure for procedure `create_facebook_user` */
-
-/*!50003 DROP PROCEDURE IF EXISTS  `create_facebook_user` */;
-
-DELIMITER $$
-
-/*!50003 CREATE DEFINER=`root`@`%` PROCEDURE `create_facebook_user`(IN _fbid VARCHAR(16),IN _name VARCHAR(16), in _diamonds int(10) unsigned, OUT _uid INT(11) unsigned)
-BEGIN
-	DECLARE t_error INTEGER DEFAULT 0;
-	DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SET t_error=1;
-	
-	start transaction;
-	set @t:=UNIX_TIMESTAMP(NOW());
-	insert into users (`name`,platform,regtime,logintime,diamonds) values(_name,0, @t, @t, _diamonds);
-	set _uid=last_insert_id();
-	insert into facebook_users (uid,fbid) values(_uid,_fbid);
-	if t_error=1 then
-		rollback;
-	else
-		commit;
-	end if;
-END */$$
-DELIMITER ;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;

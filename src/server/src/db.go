@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"./msg"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/lzhig/rapidgo/base"
 )
@@ -65,9 +66,9 @@ func (obj *mysqlDB) UpdateName(uid uint32, name string) error {
 	return nil
 }
 
-func (obj *mysqlDB) CreateUser(name string, diamonds uint32, platformID uint32) (uint32, error) {
-	result, err := obj.db.Exec("insert into users (`name`,platform,regtime,logintime,diamonds) values(?,?,UNIX_TIMESTAMP(NOW()),?)",
-		name, platformID, diamonds)
+func (obj *mysqlDB) CreateUser(name, avatar string, diamonds uint32, platformID uint32) (uint32, error) {
+	result, err := obj.db.Exec("insert into users (`name`,avatar,diamonds,platform,regtime,logintime) values(?,?,?,?,UNIX_TIMESTAMP(NOW()),UNIX_TIMESTAMP(NOW()))",
+		name, avatar, diamonds, platformID)
 	if err != nil {
 		return 0, err
 	}
@@ -107,10 +108,10 @@ func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint
 	return uid, nil
 }
 
-func (obj *mysqlDB) getUserData(uid uint32) (name string, diamonds uint32, err error) {
-	if err := obj.db.QueryRow("select name,diamonds from users where uid=?", uid).Scan(&name, &diamonds); err != nil {
+func (obj *mysqlDB) getUserData(uid uint32) (name, avatar string, diamonds uint32, err error) {
+	if err := obj.db.QueryRow("select name,avatar,diamonds from users where uid=?", uid).Scan(&name, &avatar, &diamonds); err != nil {
 		base.LogError("[mysql][getUserData] error:", err, ",uid:", uid)
-		return "", 0, err
+		return "", "", 0, err
 	}
 
 	return
@@ -159,4 +160,43 @@ func (obj *mysqlDB) loadRoom(num uint32) (name string, roomID, uid, hands, playe
 	err = obj.db.QueryRow("select room_id,name,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points from room_records where number=? and closed=false",
 		num).Scan(&roomID, &name, &uid, &hands, &playedHands, &isShare, &minBet, &maxBet, &creditPoints)
 	return
+}
+
+func (obj *mysqlDB) loadScoreboard(roomID uint32) ([]*msg.ScoreboardItem, error) {
+	rows, err := obj.db.Query("select a.uid,a.score,b.name,b.avatar from scoreboard as a,users as b where a.roomid=? and a.uid=b.uid order by a.score desc;", roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*msg.ScoreboardItem, 0, 16)
+	for rows.Next() {
+		var uid uint32
+		var score int32
+		var name string
+		var avatar string
+		if err := rows.Scan(&uid, &score, &name, &avatar); err != nil {
+			return nil, err
+		}
+		r = append(r, &msg.ScoreboardItem{Uid: uid, Score: score, Name: name, Avatar: avatar})
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) addScoreboardItem(roomID, uid uint32, score int32) error {
+	_, err := obj.db.Exec("insert into scoreboard (roomid,uid,score) values(?,?,?)",
+		roomID, uid, score)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (obj *mysqlDB) UpdateScoreboardItem(roomID, uid uint32, score int32) error {
+	_, err := obj.db.Exec("update scoreboard set score=score+? where roomid=? and uid=?",
+		score, roomID, uid)
+	if err != nil {
+		return err
+	}
+	return nil
 }

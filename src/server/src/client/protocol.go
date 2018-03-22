@@ -53,7 +53,7 @@ func (obj *protocolHandler) handle(p *msg.Protocol) {
 
 func (obj *protocolHandler) handleLogin(p *msg.Protocol) {
 	//obj.c.sendCreateRoom()
-	obj.c.sendJoinRoom()
+	//obj.c.sendJoinRoom()
 }
 
 func (obj *protocolHandler) handleCreateRoom(p *msg.Protocol) {
