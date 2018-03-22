@@ -118,15 +118,15 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 						userManager.setUserConnection(uid, userconn)
 					} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
 						// 如果是用户断线重连
-						rsp.LoginRsp.RoomId = room.roomID
-					} else {
-						u.conn = userconn
+						rsp.LoginRsp.RoomNumber = roomNumberGenerator.decode(room.number)
 					}
 
 					u.platformUser = user
 					u.name = user.GetName()
 
 				}
+
+				u.conn = userconn
 				db.UpdateName(uid, u.name)
 			}
 

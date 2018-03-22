@@ -186,7 +186,7 @@ message LoginRsp {
     uint32 uid = 2;
     string name = 3;
     string avatar = 4;
-    uint32 room_id = 5; // 如果用户在房间中，返回房间id，否则返回0
+    string room_number = 5; // 如果用户在房间中，返回房间number，否则返回""
 }
 
 // kick

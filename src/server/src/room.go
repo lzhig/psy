@@ -329,7 +329,8 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
-	if _, ok := obj.players[p.userconn.user.uid]; !ok {
+	player, ok := obj.players[p.userconn.user.uid]
+	if !ok {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
 		return
 	}
@@ -337,6 +338,9 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 	// todo: 检查入座和游戏中
 
 	// 如果可以离座，就先离座
+	if player.seatID >= 0 {
+		obj.tablePlayers[player.seatID] = nil
+	}
 
 	delete(obj.players, p.userconn.user.uid)
 	debug("leave room. uid:", p.userconn.user.uid)
