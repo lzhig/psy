@@ -312,8 +312,9 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 			&msg.Protocol{
 				Msgid: msg.MessageID_JoinRoom_Notify,
 				JoinRoomNotify: &msg.JoinRoomNotify{
-					Uid:  p.userconn.user.uid,
-					Name: p.userconn.user.name,
+					Uid:    p.userconn.user.uid,
+					Name:   p.userconn.user.name,
+					Avatar: p.userconn.user.avatar,
 				}},
 		)
 	}
@@ -416,6 +417,7 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 				Uid:       p.userconn.user.uid,
 				SeatId:    seatID,
 				OldSeatId: int32(oldSeatID),
+				Score:     obj.scoreboard.GetScore(p.userconn.user.uid),
 			}},
 	)
 }

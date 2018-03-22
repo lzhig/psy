@@ -300,6 +300,7 @@ message SitDownNotify {
     uint32 uid = 2;
     uint32 seat_id = 3;
     int32 old_seat_id = 4; // 如果是swap，则表示之前的座位
+    int32 score = 5; // 积分
 }
 
 // stand up
