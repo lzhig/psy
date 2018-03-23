@@ -71,6 +71,10 @@ enum MessageID {
     // 积分榜
     GetScoreboard_Req = 35;
     GetScoreboard_Rsp = 36;
+
+    // 牌局回顾
+    GetRoundHistory_Req = 37;
+    GetRoundHistory_Rsp = 38;
 }
 
 enum ErrorID {
@@ -123,6 +127,8 @@ enum ErrorID {
     Combine_Not_Lucky = 184; // 不是lucky
 
     GetScoreboard_Pos_Exceed_Range = 190; // 起始位置超出总数
+
+    GetRoundHistory_Round_Not_Exist = 200; // 不存在请求的局数
 }
 
 message Protocol {
@@ -162,6 +168,8 @@ message Protocol {
     ReconnectNotify reconnectNotify = 36;
     GetScoreboardReq getScoreboardReq = 37;
     GetScoreboardRsp getScoreboardRsp = 38;
+    GetRoundHistoryReq getRoundHistoryReq = 39;
+    GetRoundHistoryRsp getRoundHistoryRsp = 40;
 }
 
 
@@ -375,8 +383,30 @@ message SeatResult {
     int32 total_score = 7; // 得分总和，如果是autowin赢输和或者乌龙, score字段为空
     int32 win = 8; // 输赢积分
     uint32 bet = 9; // 下注
+    uint32 uid = 10; // uid
 }
 
+// 牌局保存到数据库
+message DBResults {
+    repeated SeatResult results = 1; // 结算结果
+}
+
+message PlayerRoundHistory {
+    uint32 uid = 1;
+    string name = 2;
+    string avatar = 3;
+    SeatResult result = 4;
+}
+
+// 获取当前房间的某局回顾
+message GetRoundHistoryReq {
+    uint32 round = 1; // 第几局，从0开始
+}
+
+message GetRoundHistoryRsp {
+    ErrorID ret = 1;
+    repeated PlayerRoundHistory results = 2; // 结果
+}
 
 // game state notify
 enum GameState {

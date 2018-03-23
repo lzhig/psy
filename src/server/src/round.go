@@ -4,6 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+
 	"./msg"
 	"github.com/lzhig/rapidgo/base"
 )
@@ -77,7 +79,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 		case msg.GameState_Show:
 			obj.switchGameState(msg.GameState_Result)
 		case msg.GameState_Result:
-			if obj.room.playedHands < obj.room.hands {
+			if obj.room.playedHands < obj.room.hands-1 {
 				// check autobanker
 				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
 				if obj.room.autoBanker {
@@ -172,14 +174,30 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		// 结算
 		obj.calculateResult()
 
+		resultsToDB := &msg.DBResults{Results: make([]*msg.SeatResult, len(obj.result))}
+
 		notify.GameStateNotify.Result = make([]*msg.SeatResult, len(obj.handCards))
 		i := 0
 		for _, v := range obj.result {
 			notify.GameStateNotify.Result[i] = v
+			resultsToDB.Results[i] = v
 			i++
 		}
 		base.LogInfo(notify)
 		obj.room.notifyAll(notify)
+
+		// save to db
+		go func() {
+			buf, err := proto.Marshal(resultsToDB)
+			if err != nil {
+				base.LogError("Failed to marshal results. reason:", err)
+				return
+			}
+
+			if err := db.SaveRoundResult(obj.room.roomID, obj.room.playedHands, string(buf)); err != nil {
+				base.LogError("Failed to save results to db. reason:", err, "data:\n", buf)
+			}
+		}()
 	case msg.GameState_Result:
 		obj.room.notifyAll(notify)
 	}
@@ -238,7 +256,7 @@ func (obj *Round) isJoinPlayer(seatID int32) bool {
 
 func (obj *Round) calculateResult() {
 	// 检查每个参与本局的玩家是否有提交组牌
-	for seatID := range obj.players {
+	for seatID, player := range obj.players {
 		if _, ok := obj.result[seatID]; !ok {
 			obj.result[seatID] = &msg.SeatResult{
 				SeatId: seatID,
@@ -248,6 +266,7 @@ func (obj *Round) calculateResult() {
 					&msg.CardGroup{Cards: make([]uint32, 0, 5)},
 				},
 				Autowin: false,
+				Uid:     player.uid,
 			}
 			// leftCards
 			obj.leftCards[seatID] = make([]uint32, len(obj.handCards[seatID]))

@@ -19,17 +19,18 @@ type protocolHandler struct {
 
 func (obj *protocolHandler) init() {
 	obj.dispatcher = map[msg.MessageID]ProtoHandlerFunc{
-		msg.MessageID_Login_Req:         obj.handleLogin,
-		msg.MessageID_CreateRoom_Req:    obj.handleRoom,
-		msg.MessageID_JoinRoom_Req:      obj.handleRoom,
-		msg.MessageID_LeaveRoom_Req:     obj.handleRoom,
-		msg.MessageID_SitDown_Req:       obj.handleRoom,
-		msg.MessageID_StandUp_Req:       obj.handleRoom,
-		msg.MessageID_AutoBanker_Req:    obj.handleRoom,
-		msg.MessageID_StartGame_Req:     obj.handleRoom,
-		msg.MessageID_Bet_Req:           obj.handleRoom,
-		msg.MessageID_Combine_Req:       obj.handleRoom,
-		msg.MessageID_GetScoreboard_Req: obj.handleRoom,
+		msg.MessageID_Login_Req:           obj.handleLogin,
+		msg.MessageID_CreateRoom_Req:      obj.handleRoom,
+		msg.MessageID_JoinRoom_Req:        obj.handleRoom,
+		msg.MessageID_LeaveRoom_Req:       obj.handleRoom,
+		msg.MessageID_SitDown_Req:         obj.handleRoom,
+		msg.MessageID_StandUp_Req:         obj.handleRoom,
+		msg.MessageID_AutoBanker_Req:      obj.handleRoom,
+		msg.MessageID_StartGame_Req:       obj.handleRoom,
+		msg.MessageID_Bet_Req:             obj.handleRoom,
+		msg.MessageID_Combine_Req:         obj.handleRoom,
+		msg.MessageID_GetScoreboard_Req:   obj.handleRoom,
+		msg.MessageID_GetRoundHistory_Req: obj.handleRoom,
 	}
 }
 

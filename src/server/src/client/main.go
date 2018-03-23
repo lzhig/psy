@@ -61,6 +61,14 @@ func main() {
 
 				case "sb", "scoreboard":
 					c.sendGetScorebard()
+				case "rh", "roundhistory":
+					if count > 1 {
+						if round, err := strconv.Atoi(words[1]); err != nil {
+							continue
+						} else {
+							c.sendGetRoundHistory(uint32(round))
+						}
+					}
 				case "h", "help":
 					showHelp()
 				default:
@@ -94,6 +102,7 @@ func showHelp() {
 	lr, leaveroom - leave room
 	ab, autobanker - auto banker
 	sb, scoreboard - scoreboard
+	rh, roundhistory - round history
 	h, help - print help
 	`
 	fmt.Println(str)

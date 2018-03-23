@@ -85,6 +85,21 @@ func (obj *App) Init() error {
 	// err = json.Unmarshal([]byte(a), &b)
 	// fmt.Println(err, b)
 
+	// for i := uint32(0); i < 12; i++ {
+	// 	buf, err := db.GetRoundResult(7, i)
+	// 	if err != nil {
+	// 		fmt.Println("i:", i, "error:", err)
+	// 		continue
+	// 	}
+	// 	r := &msg.DBResults{}
+	// 	err = proto.Unmarshal([]byte(buf), r)
+	// 	if err != nil {
+	// 		fmt.Println("i:", i, "error:", err)
+	// 		continue
+	// 	}
+	// 	fmt.Println(r)
+	// }
+
 	return nil
 }
 

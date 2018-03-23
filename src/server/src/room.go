@@ -14,6 +14,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/golang/protobuf/proto"
+
 	"./msg"
 	"github.com/lzhig/rapidgo/base"
 )
@@ -85,15 +87,16 @@ func (obj *Room) init(bLoadScoreboard bool) {
 
 	obj.protoChan = make(chan *ProtocolConnection, 128)
 	obj.protoHandlers = map[msg.MessageID]func(*ProtocolConnection){
-		msg.MessageID_JoinRoom_Req:      obj.handleJoinRoomReq,
-		msg.MessageID_LeaveRoom_Req:     obj.handleLeaveRoomReq,
-		msg.MessageID_SitDown_Req:       obj.handleSitDownReq,
-		msg.MessageID_StandUp_Req:       obj.handleStandUpReq,
-		msg.MessageID_AutoBanker_Req:    obj.handleAutoBankerReq,
-		msg.MessageID_StartGame_Req:     obj.handleStartGameReq,
-		msg.MessageID_Bet_Req:           obj.handleBetReq,
-		msg.MessageID_Combine_Req:       obj.handleCombineReq,
-		msg.MessageID_GetScoreboard_Req: obj.handleGetScoreboardReq,
+		msg.MessageID_JoinRoom_Req:        obj.handleJoinRoomReq,
+		msg.MessageID_LeaveRoom_Req:       obj.handleLeaveRoomReq,
+		msg.MessageID_SitDown_Req:         obj.handleSitDownReq,
+		msg.MessageID_StandUp_Req:         obj.handleStandUpReq,
+		msg.MessageID_AutoBanker_Req:      obj.handleAutoBankerReq,
+		msg.MessageID_StartGame_Req:       obj.handleStartGameReq,
+		msg.MessageID_Bet_Req:             obj.handleBetReq,
+		msg.MessageID_Combine_Req:         obj.handleCombineReq,
+		msg.MessageID_GetScoreboard_Req:   obj.handleGetScoreboardReq,
+		msg.MessageID_GetRoundHistory_Req: obj.handleGetRoundHistoryReq,
 	}
 
 	obj.players = make(map[uint32]*RoomPlayer)
@@ -715,6 +718,7 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 		SeatId:     seatID,
 		CardGroups: req.CardGroups,
 		Autowin:    req.Autowin,
+		Uid:        player.uid,
 	}
 
 	// 通知其他人
@@ -774,4 +778,45 @@ func (obj *Room) getTablePlayersCount() int {
 func (obj *Room) updateScoreboard(seatID uint32, score int32) {
 	player := obj.tablePlayers[seatID]
 	obj.scoreboard.Update(player.uid, player.name, player.avatar, score)
+}
+
+func (obj *Room) handleGetRoundHistoryReq(p *ProtocolConnection) {
+	req := p.p.GetRoundHistoryReq
+	rsp := &msg.Protocol{
+		Msgid:              msg.MessageID_GetRoundHistory_Rsp,
+		GetRoundHistoryRsp: &msg.GetRoundHistoryRsp{Ret: msg.ErrorID_Ok},
+	}
+	rspProto := rsp.GetRoundHistoryRsp
+	defer p.userconn.sendProtocol(rsp)
+
+	data, err := db.GetRoundResult(obj.roomID, req.Round)
+	if err != nil {
+		rspProto.Ret = msg.ErrorID_GetRoundHistory_Round_Not_Exist
+		return
+	}
+
+	results := &msg.DBResults{}
+	if err := proto.Unmarshal([]byte(data), results); err != nil {
+		rspProto.Ret = msg.ErrorID_Internal_Error
+		base.LogError("Failed to unmarshall data. error:", err, ", roomid:", obj.roomID, ", round:", req.Round)
+		return
+	}
+
+	rspProto.Results = make([]*msg.PlayerRoundHistory, len(results.Results))
+	i := 0
+	for _, result := range results.Results {
+		name, avatar, err := db.GetUserNameAvatar(result.Uid)
+		if err != nil {
+			rspProto.Ret = msg.ErrorID_DB_Error
+			base.LogError("Failed to get username and avatar. error:", err, ", roomid:", obj.roomID, ", uid:", result.Uid)
+			return
+		}
+		rspProto.Results[i] = &msg.PlayerRoundHistory{
+			Uid:    result.Uid,
+			Name:   name,
+			Avatar: avatar,
+			Result: result,
+		}
+		i++
+	}
 }

@@ -200,3 +200,23 @@ func (obj *mysqlDB) UpdateScoreboardItem(roomID, uid uint32, score int32) error 
 	}
 	return nil
 }
+
+func (obj *mysqlDB) SaveRoundResult(roomID, round uint32, result string) error {
+	_, err := obj.db.Exec("insert into game_records (roomid,round,result) values(?,?,?)",
+		roomID, round, result)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (obj *mysqlDB) GetRoundResult(roomID, round uint32) (result string, err error) {
+	err = obj.db.QueryRow("select result from game_records where roomid=? and round=?",
+		roomID, round).Scan(&result)
+	return
+}
+
+func (obj *mysqlDB) GetUserNameAvatar(uid uint32) (name, avatar string, err error) {
+	err = obj.db.QueryRow("select name,avatar from users where uid=?", uid).Scan(&name, &avatar)
+	return
+}

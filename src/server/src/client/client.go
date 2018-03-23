@@ -178,6 +178,13 @@ func (obj *client) sendGetScorebard() {
 	})
 }
 
+func (obj *client) sendGetRoundHistory(round uint32) {
+	obj.sendProtocol(&msg.Protocol{
+		Msgid:              msg.MessageID_GetRoundHistory_Req,
+		GetRoundHistoryReq: &msg.GetRoundHistoryReq{Round: round},
+	})
+}
+
 func (obj *client) handleConnection(conn *rapidnet.Connection) {
 	defer base.LogPanic()
 	defer func() {
