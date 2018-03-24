@@ -197,6 +197,15 @@ message LoginRsp {
     string room_number = 5; // 如果用户在房间中，返回房间number，否则返回""
 }
 
+message SendDiamondsReq {
+    uint32 uid = 1;
+    uint32 diamonds = 2;
+}
+
+message SendDiamondsRsp {
+    ErrorID ret = 1;
+}
+
 // kick
 message KickNotify {
 }
