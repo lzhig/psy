@@ -264,6 +264,13 @@ message ListRoomItem {
     string room_name = 3; // room name
     uint32 played_hands = 4; // 进行了的局数
     uint32 hands = 5; // 最大局数
+    repeated ListRoomPlayerInfo players = 6; // 座位上的玩家
+}
+
+message ListRoomPlayerInfo {
+    uint32 seat_id= 1; // 座位号
+    string name = 2; // 玩家姓名
+    string avatar = 3; // 玩家头像
 }
 
 // 请求或者取消监听房间状态变化
@@ -281,9 +288,7 @@ message ListRoomsListenRsp {
 message ListRoomsNotify {
     ListRoomNotifyType type = 1; // 状态变化类型
     uint32 round = 2; // 最新的局数
-    uint32 seat_id= 3; // 座位号
-    string name = 4; // 玩家姓名
-    string avatar = 5; // 玩家头像
+    ListRoomPlayerInfo player = 3; // 玩家坐下或者站起
 }
 
 enum ListRoomNotifyType {
