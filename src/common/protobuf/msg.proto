@@ -75,6 +75,14 @@ enum MessageID {
     // 牌局回顾
     GetRoundHistory_Req = 37;
     GetRoundHistory_Rsp = 38;
+
+    // 房间列表
+    ListRooms_Req = 39;
+    ListRooms_Rsp = 40;
+
+    // 监听房间状态
+    ListRoomsListen_Req = 41;
+    ListRoomsListen_Rsp = 42;
 }
 
 enum ErrorID {
@@ -170,6 +178,10 @@ message Protocol {
     GetScoreboardRsp getScoreboardRsp = 38;
     GetRoundHistoryReq getRoundHistoryReq = 39;
     GetRoundHistoryRsp getRoundHistoryRsp = 40;
+    ListRoomsReq listRoomsReq = 41;
+    ListRoomsRsp listRoomsRsp = 42;
+    ListRoomsListenReq listRoomsListenReq = 43;
+    ListRoomsListenRsp listRoomsListenRsp = 44;
 }
 
 
