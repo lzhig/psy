@@ -237,6 +237,50 @@ message CreateRoomRsp {
     string room_number = 3; // 房号
 }
 
+// List Rooms 请求房间列表
+message ListRoomsReq {
+}
+
+// 返回结果
+message ListRoomsRsp {
+    repeated ListRoomItem rooms = 1; // rooms
+}
+
+message ListRoomItem {
+    uint32 room_id = 1; // room id
+    string room_number = 2; // room number
+    string room_name = 3; // room name
+    uint32 played_hands = 4; // 进行了的局数
+    uint32 hands = 5; // 最大局数
+}
+
+// 请求或者取消监听房间状态变化
+message ListRoomsListenReq {
+    bool listen = 1; // true - 监听, false - 取消监听
+    uint32 room_ids = 2;
+}
+
+// 返回结果
+message ListRoomsListenRsp {
+    ErrorID ret = 1;
+}
+
+// 房间状态变化时，发送此消息
+message ListRoomsNotify {
+    ListRoomNotifyType type = 1; // 状态变化类型
+    uint32 round = 1; // 最新的局数
+    uint32 seat_id= 2; // 座位号
+    string name = 3; // 玩家姓名
+    string avatar = 4; // 玩家头像
+}
+
+enum ListRoomNotifyType {
+    Round = 0; // 局数变化
+    SitDown = 1; // 有人坐下
+    StandUp = 2; // 有人站起
+    Close = 3; // 关闭
+}
+
 // Consume Diamonds Notify
 message ConsumeDiamondsNotify {
     uint32 diamonds = 1;
