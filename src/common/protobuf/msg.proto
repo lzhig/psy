@@ -255,7 +255,8 @@ message ListRoomsReq {
 
 // 返回结果
 message ListRoomsRsp {
-    repeated ListRoomItem rooms = 1; // rooms
+    ErrorID ret = 1;
+    repeated ListRoomItem rooms = 2; // rooms
 }
 
 message ListRoomItem {
