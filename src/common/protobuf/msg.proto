@@ -84,6 +84,9 @@ enum MessageID {
     ListRoomsListen_Req = 41;
     ListRoomsListen_Rsp = 42;
     ListRooms_Notify = 43;
+
+    CloseRoom_Req = 44;
+    CloseRoom_Rsp = 45;
 }
 
 enum ErrorID {
@@ -184,6 +187,8 @@ message Protocol {
     ListRoomsListenReq listRoomsListenReq = 43;
     ListRoomsListenRsp listRoomsListenRsp = 44;
     ListRoomsNotify listRoomsNotify = 45;
+    CloseRoomReq closeRoomReq = 46;
+    CloseRoomRsp closeRoomRsp = 47;
 }
 
 
@@ -305,6 +310,10 @@ enum ListRoomNotifyType {
 // 关闭房间
 message CloseRoomReq {
     uint32 room_id = 1;
+}
+
+message CloseRoomRsp {
+    ErrorID ret = 1;
 }
 
 // Consume Diamonds Notify
@@ -496,6 +505,7 @@ enum GameState {
     Combine = 4; // 组牌
     Show = 5; // show 牌
     Result = 6; // 结算
+    CloseRoom = 7; // 关闭房间
 }
 
 message GameStateNotify {
