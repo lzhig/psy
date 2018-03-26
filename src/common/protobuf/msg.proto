@@ -83,6 +83,7 @@ enum MessageID {
     // 监听房间状态
     ListRoomsListen_Req = 41;
     ListRoomsListen_Rsp = 42;
+    ListRooms_Notify = 43;
 }
 
 enum ErrorID {
@@ -182,6 +183,7 @@ message Protocol {
     ListRoomsRsp listRoomsRsp = 42;
     ListRoomsListenReq listRoomsListenReq = 43;
     ListRoomsListenRsp listRoomsListenRsp = 44;
+    ListRoomsNotify listRoomsNotify = 45;
 }
 
 
@@ -277,7 +279,7 @@ message ListRoomPlayerInfo {
 // 请求或者取消监听房间状态变化
 message ListRoomsListenReq {
     bool listen = 1; // true - 监听, false - 取消监听
-    uint32 room_ids = 2;
+    repeated uint32 room_ids = 2;
 }
 
 // 返回结果
@@ -288,8 +290,9 @@ message ListRoomsListenRsp {
 // 房间状态变化时，发送此消息
 message ListRoomsNotify {
     ListRoomNotifyType type = 1; // 状态变化类型
-    uint32 round = 2; // 最新的局数
-    ListRoomPlayerInfo player = 3; // 玩家坐下或者站起
+    uint32 room_id = 2;
+    uint32 round = 3; // 最新的局数
+    ListRoomPlayerInfo player = 4; // 玩家坐下或者站起
 }
 
 enum ListRoomNotifyType {
@@ -297,6 +300,11 @@ enum ListRoomNotifyType {
     SitDown = 1; // 有人坐下
     StandUp = 2; // 有人站起
     Close = 3; // 关闭
+}
+
+// 关闭房间
+message CloseRoomReq {
+    uint32 room_id = 1;
 }
 
 // Consume Diamonds Notify
