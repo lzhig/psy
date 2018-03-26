@@ -314,6 +314,7 @@ message CloseRoomReq {
 
 message CloseRoomRsp {
     ErrorID ret = 1;
+    uint32 room_id = 2;
 }
 
 // Consume Diamonds Notify
