@@ -104,9 +104,10 @@ enum ErrorID {
     CreateRoom_Exceed_Limitation_Rooms = 104; // 超出房间总数上限
     CreateRoom_Invalid_Hands = 105; // 非法的hands
 
-    JoinRoom_Wrong_Room_Number = 110; // 错误的房号
+    JoinRoom_Wrong_Room_Number = 110; // 错误的房号或者房间已关闭
     JoinRoom_Full = 111; // 已满
     JoinRoom_Already_In = 112; // 已经在房间
+    JoinRoom_Closed = 113; // 房间已关闭
 
     LeaveRoom_Not_In = 120; //没有在房间中
     LeaveRoom_Playing = 121; // 游戏中
@@ -270,9 +271,9 @@ message ListRoomItem {
     uint32 room_id = 1; // room id
     string room_number = 2; // room number
     string room_name = 3; // room name
-    uint32 played_hands = 4; // 进行了的局数
+    uint32 owner_uid = 4; // 创建者uid
     uint32 hands = 5; // 最大局数
-    repeated ListRoomPlayerInfo players = 6; // 座位上的玩家
+    uint32 played_hands = 6; // 进行了的局数
 }
 
 message ListRoomPlayerInfo {
@@ -290,6 +291,14 @@ message ListRoomsListenReq {
 // 返回结果
 message ListRoomsListenRsp {
     ErrorID ret = 1;
+    repeated ListenRoomItem rooms = 2; // rooms
+}
+
+message ListenRoomItem {
+    uint32 room_id = 1; // room id
+    uint32 played_hands = 2; // 进行了的局数
+    repeated ListRoomPlayerInfo players = 3; // 座位上的玩家
+    bool closed = 4; // 是否已关闭
 }
 
 // 房间状态变化时，发送此消息
