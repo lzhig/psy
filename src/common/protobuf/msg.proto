@@ -82,6 +82,15 @@ enum MessageID {
 
     CloseRoom_Req = 41;
     CloseRoom_Rsp = 42;
+
+    GetProfile_Req = 43;
+    GetProfile_Rsp = 44;
+
+    DiamondsRecords_Req = 45;
+    DiamondsRecords_Rsp = 46;
+
+    SendDiamonds_Req = 47;
+    SendDiamonds_Rsp = 48;
 }
 
 enum ErrorID {
@@ -184,6 +193,15 @@ message Protocol {
     ListRoomsRsp listRoomsRsp = 42;
     CloseRoomReq closeRoomReq = 43;
     CloseRoomRsp closeRoomRsp = 44;
+
+    GetProfileReq getProfileReq = 45;
+    GetProfileRsp getProfileRsp = 46;
+
+    DiamondsRecordsReq diamondsRecordsReq = 47;
+    DiamondsRecordsRsp diamondsRecordsRsp = 48;
+
+    SendDiamondsReq sendDiamondsReq = 49;
+    SendDiamondsRsp sendDiamondsRsp = 50;
 }
 
 
