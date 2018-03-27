@@ -36,8 +36,18 @@ func main() {
 				}
 				cmd := words[0]
 				switch cmd {
+				case "lr", "listrooms":
+					c.sendListRooms()
 				case "cr", "createroom":
 					c.sendCreateRoom()
+				case "closeroom":
+					if count > 1 {
+						if roomID, err := strconv.Atoi(words[1]); err != nil {
+							continue
+						} else {
+							c.sendCloseRoom(uint32(roomID))
+						}
+					}
 				case "jr", "joinroom":
 					if count > 1 {
 
@@ -55,7 +65,7 @@ func main() {
 					c.sendBet()
 				case "su", "standup":
 					c.sendStandUp()
-				case "lr", "leaveroom":
+				case "leaveroom":
 					c.sendLeaveRoom()
 				case "ab", "autobanker":
 
@@ -93,13 +103,15 @@ func main() {
 func showHelp() {
 	str :=
 		`commands list:
+	lr, listrooms - list rooms
 	cr, createroom - create room
+	closeroom - close room
 	jr, joinroom - join room
 	sd, sitdown - sit down
 	sg, startgame - start game
 	b, bet - bet
 	su, standup - stand up
-	lr, leaveroom - leave room
+	leaveroom - leave room
 	ab, autobanker - auto banker
 	sb, scoreboard - scoreboard
 	rh, roundhistory - round history

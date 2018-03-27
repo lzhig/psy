@@ -115,7 +115,7 @@ type userConnection struct {
 	//name string
 	user *User
 	conn *rapidnet.Connection
-	room *Room
+	//room *Room
 }
 
 func (obj *userConnection) Disconnect() {

@@ -94,6 +94,14 @@ func (obj *client) sendLoginReq() {
 		})
 }
 
+func (obj *client) sendListRooms() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:        msg.MessageID_ListRooms_Req,
+			ListRoomsReq: &msg.ListRoomsReq{},
+		})
+}
+
 func (obj *client) sendCreateRoom() {
 	obj.sendProtocol(
 		&msg.Protocol{
@@ -109,9 +117,19 @@ func (obj *client) sendCreateRoom() {
 		})
 }
 
+func (obj *client) sendCloseRoom(roomID uint32) {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_CloseRoom_Req,
+			CloseRoomReq: &msg.CloseRoomReq{
+				RoomId: roomID,
+			},
+		})
+}
+
 func (obj *client) sendJoinRoom(number int) {
 	obj.roomNumber = uint32(number)
-	log(obj, "join room: %d", obj.roomNumber)
+	log(obj, "join room: ", obj.roomNumber)
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_JoinRoom_Req,

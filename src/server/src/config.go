@@ -43,6 +43,7 @@ type roomConfig struct {
 
 type userConfig struct {
 	InitDiamonds uint32 `json:"init_diamonds"`
+	FacebookAvatarType string `json:"facebook_avatar_type"`
 }
 
 // Config type

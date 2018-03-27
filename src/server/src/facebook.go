@@ -22,7 +22,7 @@ type FacebookUser struct {
 
 // GetAvatarURL 获取头像url
 func (obj *FacebookUser) GetAvatarURL() string {
-	return fmt.Sprintf("http://graph.facebook.com/%s/picture?type=large", obj.Fbid)
+	return fmt.Sprintf("http://graph.facebook.com/%s/picture?type=%s", obj.Fbid, gApp.config.User.FacebookAvatarType)
 }
 
 // GetUID 获取uid

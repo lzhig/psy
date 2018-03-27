@@ -80,13 +80,8 @@ enum MessageID {
     ListRooms_Req = 39;
     ListRooms_Rsp = 40;
 
-    // 监听房间状态
-    ListRoomsListen_Req = 41;
-    ListRoomsListen_Rsp = 42;
-    ListRooms_Notify = 43;
-
-    CloseRoom_Req = 44;
-    CloseRoom_Rsp = 45;
+    CloseRoom_Req = 41;
+    CloseRoom_Rsp = 42;
 }
 
 enum ErrorID {
@@ -142,6 +137,8 @@ enum ErrorID {
     GetScoreboard_Pos_Exceed_Range = 190; // 起始位置超出总数
 
     GetRoundHistory_Round_Not_Exist = 200; // 不存在请求的局数
+
+    CloseRoom_Cannot_Close = 210; // 不能关闭房间
 }
 
 message Protocol {
@@ -185,11 +182,8 @@ message Protocol {
     GetRoundHistoryRsp getRoundHistoryRsp = 40;
     ListRoomsReq listRoomsReq = 41;
     ListRoomsRsp listRoomsRsp = 42;
-    ListRoomsListenReq listRoomsListenReq = 43;
-    ListRoomsListenRsp listRoomsListenRsp = 44;
-    ListRoomsNotify listRoomsNotify = 45;
-    CloseRoomReq closeRoomReq = 46;
-    CloseRoomRsp closeRoomRsp = 47;
+    CloseRoomReq closeRoomReq = 43;
+    CloseRoomRsp closeRoomRsp = 44;
 }
 
 
@@ -274,46 +268,13 @@ message ListRoomItem {
     uint32 owner_uid = 4; // 创建者uid
     uint32 hands = 5; // 最大局数
     uint32 played_hands = 6; // 进行了的局数
+    repeated ListRoomPlayerInfo players = 7; // 座位上的玩家
 }
 
 message ListRoomPlayerInfo {
     uint32 seat_id= 1; // 座位号
     string name = 2; // 玩家姓名
     string avatar = 3; // 玩家头像
-}
-
-// 请求或者取消监听房间状态变化
-message ListRoomsListenReq {
-    bool listen = 1; // true - 监听, false - 取消监听
-    repeated uint32 room_ids = 2;
-}
-
-// 返回结果
-message ListRoomsListenRsp {
-    ErrorID ret = 1;
-    repeated ListenRoomItem rooms = 2; // rooms
-}
-
-message ListenRoomItem {
-    uint32 room_id = 1; // room id
-    uint32 played_hands = 2; // 进行了的局数
-    repeated ListRoomPlayerInfo players = 3; // 座位上的玩家
-    bool closed = 4; // 是否已关闭
-}
-
-// 房间状态变化时，发送此消息
-message ListRoomsNotify {
-    ListRoomNotifyType type = 1; // 状态变化类型
-    uint32 room_id = 2;
-    uint32 round = 3; // 最新的局数
-    ListRoomPlayerInfo player = 4; // 玩家坐下或者站起
-}
-
-enum ListRoomNotifyType {
-    Round = 0; // 局数变化
-    SitDown = 1; // 有人坐下
-    StandUp = 2; // 有人站起
-    Close = 3; // 关闭
 }
 
 // 关闭房间

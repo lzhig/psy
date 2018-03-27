@@ -31,6 +31,8 @@ func (obj *protocolHandler) init() {
 		msg.MessageID_Combine_Req:         obj.handleRoom,
 		msg.MessageID_GetScoreboard_Req:   obj.handleRoom,
 		msg.MessageID_GetRoundHistory_Req: obj.handleRoom,
+		msg.MessageID_ListRooms_Req:       obj.handleRoom,
+		msg.MessageID_CloseRoom_Req:       obj.handleRoom,
 	}
 }
 
@@ -52,12 +54,14 @@ func (obj *protocolHandler) handleRoom(p *ProtocolConnection) {
 	switch p.p.Msgid {
 	case msg.MessageID_CreateRoom_Req,
 		msg.MessageID_JoinRoom_Req,
-		msg.MessageID_LeaveRoom_Req:
+		msg.MessageID_LeaveRoom_Req,
+		msg.MessageID_ListRooms_Req,
+		msg.MessageID_CloseRoom_Req:
 		roomManager.GetDispatchChan() <- p
 
 	default:
-		if p.userconn.room != nil {
-			p.userconn.room.GetProtoChan() <- p
+		if p.userconn.user.room != nil {
+			p.userconn.user.room.GetProtoChan() <- p
 		} else {
 			base.LogError("[protocolHandler][handleRoom] cannot find room. proto:", p)
 		}

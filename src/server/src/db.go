@@ -122,9 +122,9 @@ func (obj *mysqlDB) saveUserDiamonds(uid, diamonds uint32) error {
 	return err
 }
 
-func (obj *mysqlDB) createRoom(num int, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool) (uint32, error) {
-	result, err := obj.db.Exec("insert into room_records (name,number,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points,create_time,close_time,closed) values(?,?,?,?,0,?,?,?,?,UNIX_TIMESTAMP(NOW()),0,false)",
-		name, num, uid, hands, isShare, minBet, maxBet, creditPoints)
+func (obj *mysqlDB) createRoom(num int, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (uint32, error) {
+	result, err := obj.db.Exec("insert into room_records (name,number,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points,create_time,close_time,closed) values(?,?,?,?,0,?,?,?,?,?,0,false)",
+		name, num, uid, hands, isShare, minBet, maxBet, creditPoints, createTime)
 	if err != nil {
 		return 0, err
 	}
@@ -156,9 +156,14 @@ func (obj *mysqlDB) getRoomCreatedCount(uid uint32) (count uint32, err error) {
 	return
 }
 
-func (obj *mysqlDB) loadRoom(num uint32) (name string, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool, err error) {
-	err = obj.db.QueryRow("select room_id,name,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points from room_records where number=? and closed=false",
-		num).Scan(&roomID, &name, &uid, &hands, &playedHands, &isShare, &minBet, &maxBet, &creditPoints)
+func (obj *mysqlDB) GetRoomID(num uint32) (roomID uint32, err error) {
+	err = obj.db.QueryRow("select room_id from room_records where number=? and closed=false", num).Scan(&roomID)
+	return
+}
+
+func (obj *mysqlDB) loadRoom(num uint32) (name string, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64, err error) {
+	err = obj.db.QueryRow("select room_id,name,owner_uid,hands,played_hands,is_share,min_bet,max_bet,credit_points,create_time from room_records where number=? and closed=false",
+		num).Scan(&roomID, &name, &uid, &hands, &playedHands, &isShare, &minBet, &maxBet, &creditPoints, &createTime)
 	return
 }
 
@@ -219,4 +224,61 @@ func (obj *mysqlDB) GetRoundResult(roomID, round uint32) (result string, err err
 func (obj *mysqlDB) GetUserNameAvatar(uid uint32) (name, avatar string, err error) {
 	err = obj.db.QueryRow("select name,avatar from users where uid=?", uid).Scan(&name, &avatar)
 	return
+}
+
+func (obj *mysqlDB) GetAllOpenRooms() ([]*roomCreateTime, error) {
+	rows, err := obj.db.Query("select room_id,create_time from room_records where closed=false order by create_time")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*roomCreateTime, 0, 256)
+	for rows.Next() {
+		var roomid uint32
+		var createTime int64
+		if err := rows.Scan(&roomid, &createTime); err != nil {
+			return nil, err
+		}
+		r = append(r, &roomCreateTime{roomid: roomid, createTime: createTime})
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) CloseRoom(roomID uint32) error {
+	_, err := obj.db.Exec("update room_records set closed=true where room_id=?", roomID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (obj *mysqlDB) GetRoomsListJoined(uid uint32) ([]*msg.ListRoomItem, error) {
+	rows, err := obj.db.Query("SELECT room_id, NAME, number, owner_uid,hands,played_hands FROM room_records WHERE room_id IN (SELECT b.`room_id` FROM scoreboard AS a, room_records AS b WHERE a.`uid`=? AND a.`roomid`=b.`room_id`  AND b.`closed`=FALSE) OR owner_uid=? AND closed=FALSE order by create_time", uid, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*msg.ListRoomItem, 0, 10)
+	for rows.Next() {
+		var roomid uint32
+		var name string
+		var number int
+		var ownerUID uint32
+		var hands uint32
+		var playedHands uint32
+		if err := rows.Scan(&roomid, &name, &number, &ownerUID, &hands, &playedHands); err != nil {
+			return nil, err
+		}
+		r = append(r, &msg.ListRoomItem{
+			RoomId:      roomid,
+			RoomName:    name,
+			RoomNumber:  roomNumberGenerator.decode(number),
+			OwnerUid:    ownerUID,
+			PlayedHands: playedHands,
+			Hands:       hands,
+		})
+	}
+	return r, nil
 }

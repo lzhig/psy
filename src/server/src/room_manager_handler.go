@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"time"
 
 	"./msg"
 	"github.com/lzhig/rapidgo/base"
@@ -78,12 +79,14 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 		return
 	}
 
-	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare)
+	createTime := time.Now().Unix()
+	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare, createTime)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
 		return
 	}
+	obj.roomCountdown.Add(room.roomID, createTime)
 
 	rsp.CreateRoomRsp.RoomId = room.roomID
 	rsp.CreateRoomRsp.RoomNumber = number
@@ -100,8 +103,22 @@ func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
 	room, ok := obj.roomsNumber[reqRoomNum]
 	if !ok {
 		// load room
-		var err error
-		name, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare, err := db.loadRoom(uint32(reqRoomNum))
+		roomID, err := db.GetRoomID(uint32(reqRoomNum))
+		switch {
+		case err == sql.ErrNoRows:
+			rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Wrong_Room_Number
+			p.userconn.sendProtocol(rsp)
+			return
+		case err != nil:
+			base.LogError("[RoomManager][joinRoom] failed to find room. number:", req.RoomNumber, ",error:", err)
+			rsp.JoinRoomRsp.Ret = msg.ErrorID_DB_Error
+			p.userconn.sendProtocol(rsp)
+			return
+		}
+		obj.roomlocker.Lock(roomID)
+		defer obj.roomlocker.Unlock(roomID)
+
+		name, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare, createTime, err := db.loadRoom(uint32(reqRoomNum))
 		switch {
 		case err == sql.ErrNoRows:
 			rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Wrong_Room_Number
@@ -114,8 +131,8 @@ func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
 			return
 		default:
 			room = obj.createRoomBase(name, reqRoomNum, roomID, uid, hands, playedHands, minBet, maxBet, creditPoints, isShare, true)
+			obj.roomCountdown.Add(room.roomID, createTime)
 		}
-
 	}
 	room.GetProtoChan() <- p
 }
@@ -134,4 +151,49 @@ func (obj *RoomManager) handleLeaveRoomReq(p *ProtocolConnection) {
 	}
 
 	room.GetProtoChan() <- p
+}
+
+func (obj *RoomManager) handleListRoomsReq(p *ProtocolConnection) {
+	rsp := &msg.Protocol{
+		Msgid:        msg.MessageID_ListRooms_Rsp,
+		ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_Ok},
+	}
+	defer p.userconn.sendProtocol(rsp)
+
+	rooms, err := db.GetRoomsListJoined(p.userconn.user.uid)
+	if err != nil {
+		rsp.ListRoomsRsp.Ret = msg.ErrorID_DB_Error
+		return
+	}
+
+	for _, r := range rooms {
+		obj.roomlocker.Lock(r.RoomId)
+		defer obj.roomlocker.Unlock(r.RoomId)
+
+		v, ok := obj.rooms.Load(r.RoomId)
+		if ok {
+			room := v.(*Room)
+			c := make(chan []*msg.ListRoomPlayerInfo)
+			room.notifyGetSeatPlayers(c)
+			r.Players = <-c
+		}
+	}
+
+	rsp.ListRoomsRsp.Rooms = rooms
+}
+
+func (obj *RoomManager) handleCloseRoomReq(p *ProtocolConnection) {
+	rsp := &msg.Protocol{
+		Msgid:        msg.MessageID_CloseRoom_Rsp,
+		CloseRoomRsp: &msg.CloseRoomRsp{Ret: msg.ErrorID_Ok},
+	}
+	defer p.userconn.sendProtocol(rsp)
+
+	roomID := p.p.CloseRoomReq.RoomId
+	rsp.CloseRoomRsp.RoomId = roomID
+
+	if !obj.CloseRoom(roomID) {
+		rsp.CloseRoomRsp.Ret = msg.ErrorID_CloseRoom_Cannot_Close
+		return
+	}
 }

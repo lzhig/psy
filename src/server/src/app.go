@@ -68,7 +68,9 @@ func (obj *App) Init() error {
 	//debug(roomNumberGenerator.encode("5428"))
 
 	dealer.init()
-	roomManager.init()
+	if err := roomManager.init(); err != nil {
+		return err
+	}
 	userManager.init()
 	loginService.init()
 

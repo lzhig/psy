@@ -10,22 +10,31 @@ import (
 
 // RoomManager type
 type RoomManager struct {
-	rooms       sync.Map
-	roomsNumber map[int]*Room
-	protoChan   chan *ProtocolConnection
-	handlers    map[msg.MessageID]func(*ProtocolConnection)
+	rooms         sync.Map
+	roomsNumber   map[int]*Room
+	protoChan     chan *ProtocolConnection
+	handlers      map[msg.MessageID]func(*ProtocolConnection)
+	roomlocker    RoomLocker
+	roomCountdown RoomCountdown
 }
 
-func (obj *RoomManager) init() {
+func (obj *RoomManager) init() error {
+	obj.roomlocker.Init()
+	if err := obj.roomCountdown.Init(); err != nil {
+		return err
+	}
 	obj.roomsNumber = make(map[int]*Room)
 	obj.protoChan = make(chan *ProtocolConnection, 128)
 	obj.handlers = map[msg.MessageID]func(*ProtocolConnection){
 		msg.MessageID_CreateRoom_Req: obj.handleCreateRoomReq,
 		msg.MessageID_JoinRoom_Req:   obj.handleJoinRoomReq,
 		msg.MessageID_LeaveRoom_Req:  obj.handleLeaveRoomReq,
+		msg.MessageID_ListRooms_Req:  obj.handleListRoomsReq,
+		msg.MessageID_CloseRoom_Req:  obj.handleCloseRoomReq,
 	}
 	ctx, _ := gApp.CreateCancelContext()
 	gApp.GoRoutine(ctx, obj.loop)
+	return nil
 }
 
 // GetDispatchChan function
@@ -51,9 +60,9 @@ func (obj *RoomManager) loop(ctx context.Context) {
 	}
 }
 
-func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool) (*Room, error) {
+func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (*Room, error) {
 	num := roomNumberGenerator.encode(number)
-	roomID, err := db.createRoom(num, name, uid, hands, minBet, maxBet, creditPoints, isShare)
+	roomID, err := db.createRoom(num, name, uid, hands, minBet, maxBet, creditPoints, isShare, createTime)
 	if err != nil {
 		return nil, err
 	}
@@ -83,4 +92,26 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 	obj.roomsNumber[num] = room
 	room.init(bLoadScoreboard)
 	return room
+}
+
+func (obj *RoomManager) CloseRoom(roomid uint32) bool {
+	base.LogInfo("CloseRoom, roomid:", roomid)
+	obj.roomlocker.Lock(roomid)
+	defer obj.roomlocker.Unlock(roomid)
+
+	r, ok := obj.rooms.Load(roomid)
+	if ok {
+		room := r.(*Room)
+		c := make(chan bool)
+		room.notifyCloseRoom(c)
+		closed := <-c
+		return closed
+	}
+
+	err := db.CloseRoom(roomid)
+	if err != nil {
+		base.LogError("[RoomManager][CloseRoom] Failed to close room:", roomid, ". error:", err)
+		return false
+	}
+	return true
 }

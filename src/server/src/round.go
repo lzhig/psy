@@ -66,6 +66,11 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 		case msg.GameState_Bet:
 			// 如果没有人下注，则流局
 			if len(obj.betChips) == 0 {
+				if obj.room.closed {
+					obj.switchGameState(msg.GameState_CloseRoom)
+					return
+				}
+
 				obj.switchGameState(msg.GameState_Ready)
 			} else {
 				obj.switchGameState(msg.GameState_Confirm_Bet)
@@ -80,12 +85,22 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 			obj.switchGameState(msg.GameState_Result)
 		case msg.GameState_Result:
 			if obj.room.playedHands < obj.room.hands-1 {
+
+				// check if closed
+				if obj.room.closed {
+					obj.switchGameState(msg.GameState_CloseRoom)
+					return
+				}
+
 				// check autobanker
 				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
 				if obj.room.autoBanker {
 					// 如果是自动连庄
 					obj.Begin()
+
+					// 局数+1
 					obj.room.nextRound()
+
 					obj.switchGameState(msg.GameState_Bet)
 				} else {
 					// 庄家站起
@@ -104,7 +119,8 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					obj.switchGameState(msg.GameState_Ready)
 				}
 			} else {
-				// todo: 如果局数已满
+				// 局数已满
+				obj.switchGameState(msg.GameState_CloseRoom)
 			}
 		}
 	}
@@ -123,7 +139,10 @@ func (obj *Round) switchGameState(state msg.GameState) {
 	switch state {
 	case msg.GameState_Ready:
 		obj.Begin()
-		obj.room.nextRound()
+
+		// 流局不再增加局数
+		//obj.room.nextRound()
+
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_Bet, msg.GameState_Combine:
@@ -200,6 +219,22 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		}()
 	case msg.GameState_Result:
 		obj.room.notifyAll(notify)
+
+	case msg.GameState_CloseRoom:
+		obj.room.closed = true
+		// kick all players
+		obj.room.notifyAll(notify)
+
+		for _, player := range obj.room.players {
+			//delete(obj.room.players, player.uid)
+			userManager.leaveRoom(player.uid, obj.room)
+			player.conn.user.room = nil
+		}
+
+		// update db
+		if err := db.CloseRoom(obj.room.roomID); err != nil {
+			base.LogError("Fail to close room. error:", err)
+		}
 	}
 
 	if notify.GameStateNotify.Countdown > 0 {

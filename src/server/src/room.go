@@ -24,6 +24,8 @@ const (
 	roomEventUserDisconnect int = iota
 	roomEventUserReconnect
 	roomEventGameStateTimeout
+	roomEventClose
+	roomEventGetSeatPlayers
 )
 
 type roomEvent struct {
@@ -70,7 +72,7 @@ type Room struct {
 	protoChan     chan *ProtocolConnection
 	protoHandlers map[msg.MessageID]func(*ProtocolConnection)
 
-	players      map[uint32]*RoomPlayer // 房间中的玩家
+	players      map[uint32]*RoomPlayer // 房间中的玩家, key为uid
 	tablePlayers []*RoomPlayer          // 入座的玩家
 
 	round      Round
@@ -83,6 +85,8 @@ func (obj *Room) init(bLoadScoreboard bool) {
 		roomEventUserDisconnect:   obj.handleEventUserDisconnect,
 		roomEventUserReconnect:    obj.handleEventUserReconnect,
 		roomEventGameStateTimeout: obj.handleEventGameStateTimeout,
+		roomEventClose:            obj.handleEventClose,
+		roomEventGetSeatPlayers:   obj.handleEventGetSeatPlayers,
 	}
 
 	obj.protoChan = make(chan *ProtocolConnection, 128)
@@ -166,13 +170,20 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	}
 	uid := args[0].(uint32)
 
-	obj.notifyOthers(obj.players[uid].conn,
-		&msg.Protocol{
-			Msgid: msg.MessageID_Disconnect_Notify,
-			DisconnectNotify: &msg.DisconnectNotify{
-				Uid: uid,
-			}})
-	obj.players[uid].conn = nil
+	player := obj.players[uid]
+	if player.seatID >= 0 {
+		obj.notifyOthers(player.conn,
+			&msg.Protocol{
+				Msgid: msg.MessageID_Disconnect_Notify,
+				DisconnectNotify: &msg.DisconnectNotify{
+					Uid: uid,
+				}})
+		player.conn = nil
+	} else {
+		// 如果是围观玩家，则立即踢离房间
+		delete(obj.players, uid)
+		userManager.leaveRoom(uid, obj)
+	}
 }
 
 func (obj *Room) notifyUserReconnect(uid uint32, conn *userConnection) {
@@ -197,6 +208,42 @@ func (obj *Room) handleEventGameStateTimeout(args []interface{}) {
 	obj.round.HandleTimeout(state)
 }
 
+func (obj *Room) notifyCloseRoom(c chan bool) {
+	obj.eventChan <- &roomEvent{event: roomEventClose, args: []interface{}{c}}
+}
+
+func (obj *Room) handleEventClose(args []interface{}) {
+	c := args[0].(chan bool)
+	if len(obj.players) == 0 {
+		obj.closed = true
+		if obj.round.state == msg.GameState_Ready {
+			obj.round.switchGameState(msg.GameState_CloseRoom)
+		}
+		c <- true
+	} else {
+		c <- false
+	}
+}
+
+func (obj *Room) notifyGetSeatPlayers(c chan []*msg.ListRoomPlayerInfo) {
+	obj.eventChan <- &roomEvent{event: roomEventGetSeatPlayers, args: []interface{}{c}}
+}
+
+func (obj *Room) handleEventGetSeatPlayers(args []interface{}) {
+	c := args[0].(chan []*msg.ListRoomPlayerInfo)
+	p := make([]*msg.ListRoomPlayerInfo, 0, len(obj.tablePlayers))
+	for _, player := range obj.tablePlayers {
+		if player == nil {
+			continue
+		}
+		p = append(p, &msg.ListRoomPlayerInfo{
+			SeatId: uint32(player.seatID),
+			Name:   player.name,
+			Avatar: player.avatar,
+		})
+	}
+	c <- p
+}
 func (obj *Room) notifyOthers(userconn *userConnection, p *msg.Protocol) {
 	for uid, player := range obj.players {
 		if uid == userconn.user.uid || player.conn == nil {
@@ -219,6 +266,11 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
+
+	if obj.closed {
+		rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Closed
+		return
+	}
 
 	isNewPlayer := true
 	seatID := int32(0)
@@ -322,7 +374,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		)
 	}
 
-	p.userconn.room = obj
+	p.userconn.user.room = obj
 }
 
 func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
@@ -358,7 +410,7 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 			}},
 	)
 
-	p.userconn.room = nil
+	p.userconn.user.room = nil
 }
 
 func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
