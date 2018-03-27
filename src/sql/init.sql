@@ -32,10 +32,9 @@ CREATE TABLE `facebook_users` (
 DROP TABLE IF EXISTS `game_records`;
 
 CREATE TABLE `game_records` (
-  `rid` int(10) unsigned NOT NULL COMMENT 'room id',
-  `uid` int(10) unsigned NOT NULL COMMENT 'uid',
-  `hands` int(10) unsigned NOT NULL COMMENT 'hands of this player',
-  `win` int(11) NOT NULL COMMENT 'win'
+  `roomid` int(10) unsigned NOT NULL COMMENT 'room id',
+  `round` int(10) unsigned NOT NULL COMMENT 'round',
+  `result` blob NOT NULL COMMENT 'result'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `room_records` */
