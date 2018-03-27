@@ -211,6 +211,41 @@ message LoginRsp {
     string room_number = 5; // 如果用户在房间中，返回房间number，否则返回""
 }
 
+message GetProfileReq {
+}
+
+message GetProfileRsp {
+    ErrorID ret = 1;
+    uint32 uid = 2;
+    string name = 3;
+    string signture = 4;
+    string avatar = 5;
+    uint32 diamonds = 6;
+}
+
+message DiamondsRecordsReq {
+    string begin_time = 1; // "2018-3-27"
+    string end_time = 2; // "2018-3-28"
+}
+
+message DiamondsRecordsRsp {
+    ErrorID ret = 1;
+    repeated DiamondsRecordsItem records = 2;
+    repeated UserNameAvatar users = 3;
+}
+
+message DiamondsRecordsItem {
+    uint32 time = 1;
+    uint32 uid = 2;
+    int32 diamonds = 3;
+}
+
+message UserNameAvatar {
+    uint32 uid = 1;
+    string name = 2;
+    string avatar = 3;
+}
+
 message SendDiamondsReq {
     uint32 uid = 1;
     uint32 diamonds = 2;
