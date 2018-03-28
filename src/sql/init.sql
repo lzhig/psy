@@ -16,6 +16,19 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/`pusoy` /*!40100 DEFAULT CHARACTER SET u
 
 USE `pusoy`;
 
+/*Table structure for table `diamond_records` */
+
+DROP TABLE IF EXISTS `diamond_records`;
+
+CREATE TABLE `diamond_records` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `time` int(10) unsigned NOT NULL,
+  `from` int(10) unsigned NOT NULL,
+  `to` int(10) unsigned NOT NULL,
+  `diamonds` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 /*Table structure for table `facebook_users` */
 
 DROP TABLE IF EXISTS `facebook_users`;
@@ -78,7 +91,8 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `uid` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(64) NOT NULL COMMENT '名字',
-  `avatar` varchar(255) NOT NULL,
+  `signture` varchar(64) DEFAULT '' COMMENT '签名',
+  `avatar` varchar(255) NOT NULL COMMENT '头像',
   `diamonds` int(11) unsigned NOT NULL DEFAULT '0' COMMENT '钻石',
   `platform` int(10) unsigned NOT NULL COMMENT '0-fb',
   `regtime` int(11) unsigned NOT NULL COMMENT '注册时间',
