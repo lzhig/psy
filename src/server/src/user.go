@@ -114,7 +114,7 @@ func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnecti
 }
 
 func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
-	name, avatar, diamonds, err := db.getUserData(uid)
+	name, _, avatar, diamonds, err := db.GetUserProfile(uid)
 	if err != nil {
 		return nil, err
 	}

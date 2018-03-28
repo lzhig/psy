@@ -98,8 +98,9 @@ enum ErrorID {
     Invalid_Params = 1; // invalid params
     DB_Error = 2; // db error
     Internal_Error = 3; // 内部错误
+    System_Busy = 4; // 系统忙
 
-    Login_Facebook_Failed = 4; // facebook登录失败
+    Login_Facebook_Failed = 90; // facebook登录失败
 
     CreateRoom_Invalid_Room_Name = 100; // 非法的房间名称
     CreateRoom_Invalid_Min_Max_Bet = 101; // 非法的最小最大下注设置
@@ -148,6 +149,14 @@ enum ErrorID {
     GetRoundHistory_Round_Not_Exist = 200; // 不存在请求的局数
 
     CloseRoom_Cannot_Close = 210; // 不能关闭房间
+
+    DiamondsRecords_Invalid_Date_Format = 220; // 日期格式错误
+    DiamondsRecords_Invalid_End_Time = 221; // 结束时间不正确
+    DiamondsRecords_Exceed_30Days = 222; // 超过30天
+
+    SendDiamonds_Not_Enough_Diamonds = 230; // 钻石不够
+    SendDiamonds_No_User = 231; // 用户不存在
+    SendDiamonds_Cannot_Self = 232; // 不能自己给自己
 }
 
 message Protocol {

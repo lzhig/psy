@@ -36,6 +36,22 @@ func main() {
 				}
 				cmd := words[0]
 				switch cmd {
+				case "gp", "getprofile":
+					c.sendGetProfile()
+				case "senddiamonds":
+					if count > 2 {
+						uid, err := strconv.Atoi(words[1])
+						if err != nil {
+							continue
+						}
+						diamonds, err := strconv.Atoi(words[2])
+						if err != nil {
+							continue
+						}
+						c.sendSendDiamonds(uint32(uid), uint32(diamonds))
+					}
+				case "dr":
+					c.sendDiamondsRecords()
 				case "lr", "listrooms":
 					c.sendListRooms()
 				case "cr", "createroom":
@@ -103,6 +119,9 @@ func main() {
 func showHelp() {
 	str :=
 		`commands list:
+	gp, getprofile - get profile
+	senddiamonds - send diamonds
+	dr - diamonds records
 	lr, listrooms - list rooms
 	cr, createroom - create room
 	closeroom - close room

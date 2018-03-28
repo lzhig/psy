@@ -22,6 +22,7 @@ var debug func(a ...interface{}) (int, error)
 var roomManager = &RoomManager{}
 var roomNumberGenerator = &RoomNumberGenerator{}
 var dealer = &Dealer{}
+var diamondsCenter = &DiamondsCenter{}
 
 // App type
 type App struct {
@@ -71,6 +72,7 @@ func (obj *App) Init() error {
 	if err := roomManager.init(); err != nil {
 		return err
 	}
+	diamondsCenter.init()
 	userManager.init()
 	loginService.init()
 

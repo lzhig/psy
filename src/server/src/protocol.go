@@ -20,6 +20,7 @@ type protocolHandler struct {
 func (obj *protocolHandler) init() {
 	obj.dispatcher = map[msg.MessageID]ProtoHandlerFunc{
 		msg.MessageID_Login_Req:           obj.handleLogin,
+		msg.MessageID_GetProfile_Req:      obj.handleLogin,
 		msg.MessageID_CreateRoom_Req:      obj.handleRoom,
 		msg.MessageID_JoinRoom_Req:        obj.handleRoom,
 		msg.MessageID_LeaveRoom_Req:       obj.handleRoom,
@@ -33,12 +34,14 @@ func (obj *protocolHandler) init() {
 		msg.MessageID_GetRoundHistory_Req: obj.handleRoom,
 		msg.MessageID_ListRooms_Req:       obj.handleRoom,
 		msg.MessageID_CloseRoom_Req:       obj.handleRoom,
+		msg.MessageID_SendDiamonds_Req:    diamondsCenter.handle,
+		msg.MessageID_DiamondsRecords_Req: diamondsCenter.handle,
 	}
 }
 
 func (obj *protocolHandler) handle(p *ProtocolConnection) {
 	if f, ok := obj.dispatcher[p.p.Msgid]; ok {
-		base.LogInfo("received msgid:", msg.MessageID_name[int32(p.p.Msgid)], ", user:", p.userconn.user)
+		base.LogInfo("received msg:", p.p, ", user:", p.userconn.user)
 		f(p)
 	} else {
 		base.LogError("[protocolHandler][dispatch] cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])

@@ -94,6 +94,39 @@ func (obj *client) sendLoginReq() {
 		})
 }
 
+func (obj *client) sendGetProfile() {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid:         msg.MessageID_GetProfile_Req,
+			GetProfileReq: &msg.GetProfileReq{},
+		})
+}
+
+func (obj *client) sendSendDiamonds(uid, diamonds uint32) {
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_SendDiamonds_Req,
+			SendDiamondsReq: &msg.SendDiamondsReq{
+				Uid:      uid,
+				Diamonds: diamonds,
+			},
+		})
+}
+
+func (obj *client) sendDiamondsRecords() {
+	tomorrow := time.Now().AddDate(0, 0, 1)
+	end := tomorrow.Format("2006-1-2")
+	begin := tomorrow.AddDate(0, 0, -30).Format("2006-1-2")
+	obj.sendProtocol(
+		&msg.Protocol{
+			Msgid: msg.MessageID_DiamondsRecords_Req,
+			DiamondsRecordsReq: &msg.DiamondsRecordsReq{
+				BeginTime: begin,
+				EndTime:   end,
+			},
+		})
+}
+
 func (obj *client) sendListRooms() {
 	obj.sendProtocol(
 		&msg.Protocol{

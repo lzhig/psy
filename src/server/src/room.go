@@ -857,7 +857,7 @@ func (obj *Room) handleGetRoundHistoryReq(p *ProtocolConnection) {
 	rspProto.Results = make([]*msg.PlayerRoundHistory, len(results.Results))
 	i := 0
 	for _, result := range results.Results {
-		name, avatar, err := db.GetUserNameAvatar(result.Uid)
+		r, err := db.GetUsersNameAvatar([]uint32{result.Uid})
 		if err != nil {
 			rspProto.Ret = msg.ErrorID_DB_Error
 			base.LogError("Failed to get username and avatar. error:", err, ", roomid:", obj.roomID, ", uid:", result.Uid)
@@ -865,8 +865,8 @@ func (obj *Room) handleGetRoundHistoryReq(p *ProtocolConnection) {
 		}
 		rspProto.Results[i] = &msg.PlayerRoundHistory{
 			Uid:    result.Uid,
-			Name:   name,
-			Avatar: avatar,
+			Name:   r[0].Name,
+			Avatar: r[0].Avatar,
 			Result: result,
 		}
 		i++

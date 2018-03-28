@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"time"
 
 	"./msg"
 	_ "github.com/go-sql-driver/mysql"
@@ -77,48 +79,68 @@ func (obj *mysqlDB) CreateUser(name, avatar string, diamonds uint32, platformID 
 	return uint32(id), nil
 }
 
-func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint32, error) {
-	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,?,@uid)")
-	if err != nil {
-		base.LogError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
-		return 0, err
-	}
-	defer stmt.Close()
+// func (obj *mysqlDB) createFacebookUser(fbID, name string, diamonds uint32) (uint32, error) {
+// 	stmt, err := obj.db.Prepare("CALL create_facebook_user(?,?,?,@uid)")
+// 	if err != nil {
+// 		base.LogError("[mysql][createFacebookUser] failed to prepare sp, error:", err, "fbID:", fbID, ", name:", name)
+// 		return 0, err
+// 	}
+// 	defer stmt.Close()
 
-	_, err = stmt.Exec(fbID, name, diamonds)
-	if err != nil {
-		base.LogError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
-		return 0, err
-	}
+// 	_, err = stmt.Exec(fbID, name, diamonds)
+// 	if err != nil {
+// 		base.LogError("[mysql][createFacebookUser] failed to exec, error:", err, "fbID:", fbID, ", name:", name)
+// 		return 0, err
+// 	}
 
-	stmt1, err := obj.db.Prepare("select @uid as uid")
-	if err != nil {
-		base.LogError("[mysql][createFacebookUser] failed to prepare select, error:", err, "fbID:", fbID, ", name:", name)
-		return 0, err
-	}
-	defer stmt1.Close()
+// 	stmt1, err := obj.db.Prepare("select @uid as uid")
+// 	if err != nil {
+// 		base.LogError("[mysql][createFacebookUser] failed to prepare select, error:", err, "fbID:", fbID, ", name:", name)
+// 		return 0, err
+// 	}
+// 	defer stmt1.Close()
 
-	var uid uint32
-	err = stmt1.QueryRow().Scan(&uid)
-	if err != nil {
-		base.LogError("[mysql][createFacebookUser] failed to scan, error:", err, "fbID:", fbID, ", name:", name)
-		return 0, err
-	}
+// 	var uid uint32
+// 	err = stmt1.QueryRow().Scan(&uid)
+// 	if err != nil {
+// 		base.LogError("[mysql][createFacebookUser] failed to scan, error:", err, "fbID:", fbID, ", name:", name)
+// 		return 0, err
+// 	}
 
-	return uid, nil
-}
-
-func (obj *mysqlDB) getUserData(uid uint32) (name, avatar string, diamonds uint32, err error) {
-	if err := obj.db.QueryRow("select name,avatar,diamonds from users where uid=?", uid).Scan(&name, &avatar, &diamonds); err != nil {
-		base.LogError("[mysql][getUserData] error:", err, ",uid:", uid)
-		return "", "", 0, err
-	}
-
-	return
-}
+// 	return uid, nil
+// }
 
 func (obj *mysqlDB) saveUserDiamonds(uid, diamonds uint32) error {
 	_, err := obj.db.Exec("update users set diamonds=? where uid=?", diamonds, uid)
+	return err
+}
+
+var ErrorNotEnoughDiamonds = errors.New("diamonds are not enough")
+
+func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32) error {
+	result, err := obj.db.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds, from, diamonds)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return ErrorNotEnoughDiamonds
+	}
+
+	_, err = obj.db.Exec("update users set diamonds=diamonds+? where uid=?", diamonds, to)
+	if err != nil {
+		base.LogError("failed to update db. error:", err)
+		return err
+	}
+
+	_, err = obj.db.Exec("insert into diamond_records (`time`,`from`,`to`,diamonds) values(?,?,?,?)", time.Now().Unix(), from, to, diamonds)
+	if err != nil {
+		base.LogError("failed to update db. error:", err)
+	}
+
 	return err
 }
 
@@ -221,9 +243,24 @@ func (obj *mysqlDB) GetRoundResult(roomID, round uint32) (result string, err err
 	return
 }
 
-func (obj *mysqlDB) GetUserNameAvatar(uid uint32) (name, avatar string, err error) {
-	err = obj.db.QueryRow("select name,avatar from users where uid=?", uid).Scan(&name, &avatar)
+func (obj *mysqlDB) GetUserProfile(uid uint32) (name, signture, avatar string, diamonds uint32, err error) {
+	err = obj.db.QueryRow("select name,signture,avatar,diamonds from users where uid=?", uid).Scan(&name, &signture, &avatar, &diamonds)
+	if err != nil {
+		base.LogError("GetUserProfile(", uid, "), error:", err)
+	}
 	return
+}
+
+func (obj *mysqlDB) ExistUser(uid uint32) (bool, error) {
+	err := obj.db.QueryRow("select uid from users where uid=?", uid).Scan(&uid)
+	switch {
+	case err == sql.ErrNoRows:
+		return false, nil
+	case err != nil:
+		base.LogError("ExistUser(", uid, "), error:", err)
+		return false, err
+	}
+	return true, nil
 }
 
 func (obj *mysqlDB) GetAllOpenRooms() ([]*roomCreateTime, error) {
@@ -279,6 +316,78 @@ func (obj *mysqlDB) GetRoomsListJoined(uid uint32) ([]*msg.ListRoomItem, error) 
 			PlayedHands: playedHands,
 			Hands:       hands,
 		})
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) GetDiamondRecords(uid uint32, begin, end int64) ([]*msg.DiamondsRecordsItem, error) {
+	rows, err := obj.db.Query("SELECT `time`,`from`,`to`,diamonds FROM diamond_records WHERE `time`>=? and `time`<? and (`from`=? or `to`=?)  order by time desc", begin, end, uid, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*msg.DiamondsRecordsItem, 0, 16)
+	for rows.Next() {
+		var time uint32
+		var from uint32
+		var to uint32
+		var diamonds int32
+		if err := rows.Scan(&time, &from, &to, &diamonds); err != nil {
+			return nil, err
+		}
+
+		if to == uid {
+			r = append(r, &msg.DiamondsRecordsItem{
+				Time:     time,
+				Uid:      from,
+				Diamonds: diamonds,
+			})
+		} else {
+			r = append(r, &msg.DiamondsRecordsItem{
+				Time:     time,
+				Uid:      to,
+				Diamonds: -diamonds,
+			})
+		}
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) GetUsersNameAvatar(uids []uint32) ([]*msg.UserNameAvatar, error) {
+	var sql string
+	l := len(uids)
+	if l == 0 {
+		return []*msg.UserNameAvatar{}, nil
+	} else if l == 1 {
+		sql = fmt.Sprintf("uid=%d", uids[0])
+	} else {
+		sql = fmt.Sprintf("uid in (%d", uids[0])
+		for i := 1; i < l; i++ {
+			sql += fmt.Sprintf(",%d", uids[i])
+		}
+		sql += ")"
+	}
+	rows, err := obj.db.Query("SELECT uid,name,avatar FROM users WHERE ?", sql)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*msg.UserNameAvatar, 0, 16)
+	for rows.Next() {
+		var uid uint32
+		var name, avatar string
+		if err := rows.Scan(&uid, &name, &avatar); err != nil {
+			return nil, err
+		}
+
+		r = append(r, &msg.UserNameAvatar{
+			Uid:    uid,
+			Name:   name,
+			Avatar: avatar,
+		})
+
 	}
 	return r, nil
 }

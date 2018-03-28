@@ -59,6 +59,17 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 	obj.limitation.Acquire()
 	defer obj.limitation.Release()
 
+	switch p.Msgid {
+	case msg.MessageID_Login_Req:
+		obj.handleLogin(userconn, p)
+	case msg.MessageID_GetProfile_Req:
+		obj.handleGetProfile(userconn, p)
+
+	}
+}
+
+func (obj *LoginService) handleLogin(userconn *userConnection, p *msg.Protocol) {
+
 	rsp := &msg.Protocol{
 		Msgid:    msg.MessageID_Login_Rsp,
 		LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_Invalid_Params},
@@ -163,6 +174,28 @@ func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
 		errHandle(msg.ErrorID_Invalid_Params)
 		return
 	}
+}
+
+func (obj *LoginService) handleGetProfile(userconn *userConnection, p *msg.Protocol) {
+
+	rsp := &msg.Protocol{
+		Msgid:         msg.MessageID_GetProfile_Rsp,
+		GetProfileRsp: &msg.GetProfileRsp{Ret: msg.ErrorID_Ok},
+	}
+	defer userconn.sendProtocol(rsp)
+
+	name, signture, avatar, diamonds, err := db.GetUserProfile(userconn.user.uid)
+	if err != nil {
+		rsp.GetProfileRsp.Ret = msg.ErrorID_DB_Error
+		return
+	}
+	userconn.user.diamonds = diamonds
+
+	rsp.GetProfileRsp.Uid = userconn.user.uid
+	rsp.GetProfileRsp.Name = name
+	rsp.GetProfileRsp.Signture = signture
+	rsp.GetProfileRsp.Avatar = avatar
+	rsp.GetProfileRsp.Diamonds = diamonds
 }
 
 func sendProtocol(conn *rapidnet.Connection, p *msg.Protocol) {
