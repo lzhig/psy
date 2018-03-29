@@ -234,6 +234,12 @@ func (obj *mysqlDB) SaveRoundResult(roomID, round uint32, result string) error {
 	if err != nil {
 		return err
 	}
+
+	_, err = obj.db.Exec("update room_records set played_hands=? where room_id=?",
+		round+1, roomID)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -355,20 +361,20 @@ func (obj *mysqlDB) GetDiamondRecords(uid uint32, begin, end int64) ([]*msg.Diam
 }
 
 func (obj *mysqlDB) GetUsersNameAvatar(uids []uint32) ([]*msg.UserNameAvatar, error) {
-	var sql string
+	sql := "SELECT uid,name,avatar FROM users WHERE "
 	l := len(uids)
 	if l == 0 {
 		return []*msg.UserNameAvatar{}, nil
 	} else if l == 1 {
-		sql = fmt.Sprintf("uid=%d", uids[0])
+		sql += fmt.Sprintf("uid=%d", uids[0])
 	} else {
-		sql = fmt.Sprintf("uid in (%d", uids[0])
+		sql += fmt.Sprintf("uid in (%d", uids[0])
 		for i := 1; i < l; i++ {
 			sql += fmt.Sprintf(",%d", uids[i])
 		}
 		sql += ")"
 	}
-	rows, err := obj.db.Query("SELECT uid,name,avatar FROM users WHERE ?", sql)
+	rows, err := obj.db.Query(sql)
 	if err != nil {
 		return nil, err
 	}
