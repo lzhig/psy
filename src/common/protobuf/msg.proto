@@ -586,3 +586,39 @@ message GetScoreboardRsp {
     uint32 total = 2; // 积分榜总个数
     repeated ScoreboardItem items = 3; // 当前起始位置开始的积分榜项
 }
+
+// 生涯
+message CareerWinLoseDataReq {
+    repeated uint32 days = 1;
+}
+
+message CareerWinLoseDataRsp {
+    ErrorID ret = 1;
+    repeated CareerWinLoseDataItem data = 2;
+}
+
+message CareerWinLoseDataItem {
+    uint32 win = 1;
+    uint32 lose = 2;
+}
+
+message CareerRoomRecordsReq {
+    uint32 days = 1;
+}
+
+message CareerRoomRecordsRsp {
+    ErrorID ret = 1;
+    repeated CareerRoomRecord records = 2;
+}
+
+message CareerRoomRecord {
+    string name = 1; // room name
+    uint32 begin_time = 2; // 开始时间
+    uint32 end_time = 3; // 结束时间
+    uint32 played_hands = 4; // 已经玩过的局数
+    uint32 hands = 5; // 总局数
+    bool is_share = 6; // aa制
+    uint32 min_bet = 7; // min bet
+    uint32 max_bet = 8; // max bet
+    repeated ScoreboardItem items = 9; // 积分榜
+}
