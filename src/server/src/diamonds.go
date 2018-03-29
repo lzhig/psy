@@ -108,13 +108,16 @@ func (obj *DiamondsCenter) handleDiamondsRecordsReq(p *ProtocolConnection) {
 	defer p.userconn.sendProtocol(rsp)
 
 	req := p.p.DiamondsRecordsReq
+	// '00:00:00'
 	begin, err := time.Parse("2006-1-2", req.BeginTime)
 	if err != nil {
 		rsp.DiamondsRecordsRsp.Ret = msg.ErrorID_DiamondsRecords_Invalid_Date_Format
 		return
 	}
 
+	// '23:59:59'
 	end, err := time.Parse("2006-1-2", req.EndTime)
+	end = end.AddDate(0, 0, 1)
 	if err != nil {
 		rsp.DiamondsRecordsRsp.Ret = msg.ErrorID_DiamondsRecords_Invalid_Date_Format
 		return
