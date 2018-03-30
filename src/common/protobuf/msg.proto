@@ -91,6 +91,12 @@ enum MessageID {
 
     SendDiamonds_Req = 47;
     SendDiamonds_Rsp = 48;
+
+    CareerWinLoseData_Req = 49;
+    CareerWinLoseData_Rsp = 50;
+
+    CareerRoomRecords_Req = 51;
+    CareerRoomRecords_Rsp = 52;
 }
 
 enum ErrorID {
@@ -211,6 +217,12 @@ message Protocol {
 
     SendDiamondsReq sendDiamondsReq = 49;
     SendDiamondsRsp sendDiamondsRsp = 50;
+
+    CareerWinLoseDataReq careerWinLoseDataReq = 51;
+    CareerWinLoseDataRsp careerWinLoseDataRsp = 52;
+
+    CareerRoomRecordsReq careerRoomRecordsReq = 53;
+    CareerRoomRecordsRsp careerRoomRecordsRsp = 54;
 }
 
 
@@ -612,13 +624,14 @@ message CareerRoomRecordsRsp {
 }
 
 message CareerRoomRecord {
-    string name = 1; // room name
-    uint32 begin_time = 2; // 开始时间
-    uint32 end_time = 3; // 结束时间
-    uint32 played_hands = 4; // 已经玩过的局数
-    uint32 hands = 5; // 总局数
-    bool is_share = 6; // aa制
-    uint32 min_bet = 7; // min bet
-    uint32 max_bet = 8; // max bet
-    repeated ScoreboardItem items = 9; // 积分榜
+    uint32 room_id = 1; // room id
+    string name = 2; // room name
+    uint32 begin_time = 3; // 开始时间
+    uint32 end_time = 4; // 结束时间
+    uint32 played_hands = 5; // 已经玩过的局数
+    uint32 hands = 6; // 总局数
+    bool is_share = 7; // aa制
+    uint32 min_bet = 8; // min bet
+    uint32 max_bet = 9; // max bet
+    repeated ScoreboardItem items = 10; // 积分榜
 }

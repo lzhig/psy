@@ -397,3 +397,51 @@ func (obj *mysqlDB) GetUsersNameAvatar(uids []uint32) ([]*msg.UserNameAvatar, er
 	}
 	return r, nil
 }
+
+func (obj *mysqlDB) GetCareerWinLoseData(uid uint32, start, end int64) ([]int, error) {
+	rows, err := obj.db.Query("SELECT b.`score` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=?", start, end, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]int, 0, 8)
+	for rows.Next() {
+		var score int
+		if err := rows.Scan(&score); err != nil {
+			return nil, err
+		}
+		r = append(r, score)
+	}
+	return r, nil
+}
+
+func (obj *mysqlDB) GetCareerRooms(uid uint32, start, end int64) ([]*msg.CareerRoomRecord, error) {
+	rows, err := obj.db.Query("SELECT a.`room_id`,a.`name`,a.`hands`,a.`played_hands`,a.`is_share`,a.`min_bet`,a.`max_bet`,a.`create_time`,a.`close_time` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=?", start, end, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	r := make([]*msg.CareerRoomRecord, 0, 8)
+	for rows.Next() {
+		var roomID, hands, playedHands, minBet, maxBet, createTime, closeTime uint32
+		var name string
+		var isShare bool
+		if err := rows.Scan(&roomID, &name, &hands, &playedHands, &isShare, &minBet, &maxBet, &createTime, &closeTime); err != nil {
+			return nil, err
+		}
+		r = append(r, &msg.CareerRoomRecord{
+			RoomId:      roomID,
+			Name:        name,
+			Hands:       hands,
+			PlayedHands: playedHands,
+			IsShare:     isShare,
+			MinBet:      minBet,
+			MaxBet:      maxBet,
+			BeginTime:   createTime,
+			EndTime:     closeTime,
+		})
+	}
+	return r, nil
+}

@@ -23,6 +23,7 @@ var roomManager = &RoomManager{}
 var roomNumberGenerator = &RoomNumberGenerator{}
 var dealer = &Dealer{}
 var diamondsCenter = &DiamondsCenter{}
+var careerCenter = &CareerCenter{}
 
 // App type
 type App struct {
@@ -72,6 +73,7 @@ func (obj *App) Init() error {
 	if err := roomManager.init(); err != nil {
 		return err
 	}
+	careerCenter.Init()
 	diamondsCenter.init()
 	userManager.init()
 	loginService.init()
@@ -83,6 +85,11 @@ func (obj *App) Init() error {
 	obj.gm = &gameManager{}
 
 	base.LogInfo("init done.")
+
+	// t := time.Time{}
+	// y, m, d := time.Now().AddDate(0, 0, 1).Date()
+	// t = t.AddDate(y-1, int(m)-1, d-1)
+	// fmt.Println(t.Format("2006-1-2 15:4:5"))
 
 	// a := `{"error":{"message":"Unsupported get request. Object with ID '1637239499921854' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https:\/\/developers.facebook.com\/docs\/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"BlfdHAICYcb"}}`
 	// b := checkResult{}

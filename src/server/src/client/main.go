@@ -95,6 +95,33 @@ func main() {
 							c.sendGetRoundHistory(uint32(round))
 						}
 					}
+				case "cd":
+					if count > 1 {
+						parse := func() ([]uint32, error) {
+							days := make([]uint32, count-1)
+							for i := 1; i < count; i++ {
+								d, err := strconv.Atoi(words[i])
+								if err != nil {
+									return nil, err
+								}
+								days[i-1] = uint32(d)
+							}
+							return days, nil
+						}
+						if days, err := parse(); err != nil {
+							continue
+						} else {
+							c.sendCareerWinLoseData(days)
+						}
+					}
+				case "cr1":
+					if count > 1 {
+						if days, err := strconv.Atoi(words[1]); err != nil {
+							continue
+						} else {
+							c.sendCareerRoomRecords(uint32(days))
+						}
+					}
 				case "h", "help":
 					showHelp()
 				default:
@@ -134,6 +161,8 @@ func showHelp() {
 	ab, autobanker - auto banker
 	sb, scoreboard - scoreboard
 	rh, roundhistory - round history
+	cd - career data
+	cr1 - career record
 	h, help - print help
 	`
 	fmt.Println(str)

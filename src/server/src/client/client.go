@@ -236,6 +236,20 @@ func (obj *client) sendGetRoundHistory(round uint32) {
 	})
 }
 
+func (obj *client) sendCareerWinLoseData(days []uint32) {
+	obj.sendProtocol(&msg.Protocol{
+		Msgid:                msg.MessageID_CareerWinLoseData_Req,
+		CareerWinLoseDataReq: &msg.CareerWinLoseDataReq{Days: days},
+	})
+}
+
+func (obj *client) sendCareerRoomRecords(days uint32) {
+	obj.sendProtocol(&msg.Protocol{
+		Msgid:                msg.MessageID_CareerRoomRecords_Req,
+		CareerRoomRecordsReq: &msg.CareerRoomRecordsReq{Days: days},
+	})
+}
+
 func (obj *client) handleConnection(conn *rapidnet.Connection) {
 	defer base.LogPanic()
 	defer func() {
