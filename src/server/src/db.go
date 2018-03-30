@@ -288,8 +288,8 @@ func (obj *mysqlDB) GetAllOpenRooms() ([]*roomCreateTime, error) {
 	return r, nil
 }
 
-func (obj *mysqlDB) CloseRoom(roomID uint32) error {
-	_, err := obj.db.Exec("update room_records set closed=true where room_id=?", roomID)
+func (obj *mysqlDB) CloseRoom(roomID uint32, closeTime int64) error {
+	_, err := obj.db.Exec("update room_records set closed=true,close_time=? where room_id=?", closeTime, roomID)
 	if err != nil {
 		return err
 	}

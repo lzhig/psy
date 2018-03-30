@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	"./msg"
 	"github.com/lzhig/rapidgo/base"
@@ -108,7 +109,7 @@ func (obj *RoomManager) CloseRoom(roomid uint32) bool {
 		return closed
 	}
 
-	err := db.CloseRoom(roomid)
+	err := db.CloseRoom(roomid, time.Now().Unix())
 	if err != nil {
 		base.LogError("[RoomManager][CloseRoom] Failed to close room:", roomid, ". error:", err)
 		return false

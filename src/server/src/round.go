@@ -232,7 +232,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		}
 
 		// update db
-		if err := db.CloseRoom(obj.room.roomID); err != nil {
+		if err := db.CloseRoom(obj.room.roomID, time.Now().Unix()); err != nil {
 			base.LogError("Fail to close room. error:", err)
 		}
 	}
