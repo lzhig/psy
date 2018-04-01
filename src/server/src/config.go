@@ -26,6 +26,7 @@ type mysqlConfig struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Db       string `json:"db"`
+	MaxConns int    `json:"max_conns"`
 }
 
 type roomConfig struct {
@@ -42,7 +43,7 @@ type roomConfig struct {
 }
 
 type userConfig struct {
-	InitDiamonds uint32 `json:"init_diamonds"`
+	InitDiamonds       uint32 `json:"init_diamonds"`
 	FacebookAvatarType string `json:"facebook_avatar_type"`
 }
 

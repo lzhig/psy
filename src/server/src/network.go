@@ -52,16 +52,16 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 					case event := <-obj.eventChan:
 						switch event.Type {
 						case rapidnet.EventConnected:
-							base.LogInfo(event.Conn.RemoteAddr().String(), "connected")
+							base.LogInfo(event.Conn.RemoteAddr().String(), " connected")
 							ctx, _ := context.WithCancel(ctx)
 							gApp.GoRoutineArgs(ctx, obj.handleConnection, &userConnection{conn: event.Conn})
 
 							// todo 连接成功后，一段时间后需要登录成功，否则将断线
 						case rapidnet.EventDisconnected:
-							base.LogInfo(event.Conn.RemoteAddr().String(), "disconnected", event.Err)
+							base.LogInfo(event.Conn.RemoteAddr().String(), " disconnected. error:", event.Err)
 
 						case rapidnet.EventSendFailed:
-							base.LogInfo(event.Conn.RemoteAddr().String(), "Failed to send", event.Err)
+							base.LogInfo(event.Conn.RemoteAddr().String(), " Failed to send. error:", event.Err)
 						}
 					}
 				}

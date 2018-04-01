@@ -55,7 +55,7 @@ func (obj *App) Init() error {
 	obj.App.Init()
 
 	mysqlCfg := obj.config.Mysql
-	if err := db.open(mysqlCfg.Addr, mysqlCfg.Username, mysqlCfg.Password, mysqlCfg.Db); err != nil {
+	if err := db.open(mysqlCfg.Addr, mysqlCfg.Username, mysqlCfg.Password, mysqlCfg.Db, mysqlCfg.MaxConns); err != nil {
 		return err
 	}
 

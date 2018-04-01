@@ -15,12 +15,14 @@ type mysqlDB struct {
 	db *sql.DB
 }
 
-func (obj *mysqlDB) open(addr, username, password, dbname string) error {
+func (obj *mysqlDB) open(addr, username, password, dbname string, maxConns int) error {
 	var err error
 	obj.db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?multiStatements=true", username, password, addr, dbname))
 	if err != nil {
 		return err
 	}
+	obj.db.SetMaxIdleConns(maxConns)
+	obj.db.SetMaxOpenConns(maxConns)
 	return nil
 }
 
@@ -38,7 +40,7 @@ func (obj *mysqlDB) getUIDFacebook(fbID string) (uint32, error) {
 	case err == sql.ErrNoRows:
 		return 0, nil
 	case err != nil:
-		base.LogError("[mysql][getUIDFacebook] query uid, error:", err, "fbID:", fbID)
+		base.LogError("[mysql][getUIDFacebook] query uid, error:", err, ", fbID:", fbID)
 		return 0, err
 	default:
 		// _, err := obj.db.Exec("update users set name=? where uid=?", name, uid)
@@ -417,7 +419,7 @@ func (obj *mysqlDB) GetCareerWinLoseData(uid uint32, start, end int64) ([]int, e
 }
 
 func (obj *mysqlDB) GetCareerRooms(uid uint32, start, end int64) ([]*msg.CareerRoomRecord, error) {
-	rows, err := obj.db.Query("SELECT a.`room_id`,a.`name`,a.`hands`,a.`played_hands`,a.`is_share`,a.`min_bet`,a.`max_bet`,a.`create_time`,a.`close_time` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=?", start, end, uid)
+	rows, err := obj.db.Query("SELECT a.`room_id`,a.`name`,a.`hands`,a.`played_hands`,a.`is_share`,a.`min_bet`,a.`max_bet`,a.`create_time`,a.`close_time` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=? order by a.create_time desc", start, end, uid)
 	if err != nil {
 		return nil, err
 	}
