@@ -227,6 +227,9 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 		for _, player := range obj.room.players {
 			//delete(obj.room.players, player.uid)
+			if player.seatID >= 0 {
+				obj.room.tablePlayers[player.seatID] = nil
+			}
 			userManager.leaveRoom(player.uid, obj.room)
 			player.conn.user.room = nil
 		}

@@ -47,15 +47,21 @@ type userConfig struct {
 	FacebookAvatarType string `json:"facebook_avatar_type"`
 }
 
+type versionServiceConfig struct {
+	Addr string `json:"addr"`
+	File string `json:"file"`
+}
+
 // Config type
 type Config struct {
-	Version string       `json:"version"`
-	Debug   bool         `json:"debug"`
-	CPUNum  int          `json:"cpu_num"`
-	Server  serverConfig `json:"server"`
-	Mysql   mysqlConfig  `json:"mysql"`
-	Room    roomConfig   `json:"room"`
-	User    userConfig   `json:"user"`
+	Version        string               `json:"version"`
+	Debug          bool                 `json:"debug"`
+	CPUNum         int                  `json:"cpu_num"`
+	Server         serverConfig         `json:"server"`
+	Mysql          mysqlConfig          `json:"mysql"`
+	Room           roomConfig           `json:"room"`
+	User           userConfig           `json:"user"`
+	VersionService versionServiceConfig `json:"version_service"`
 }
 
 // Load function

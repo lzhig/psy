@@ -30,5 +30,9 @@
     "user":{
         "init_diamonds":10000,
         "facebook_avatar_type":"normal"
+    },
+    "version_service":{
+        "addr":":8012",
+        "file":"version.xml"
     }
 }

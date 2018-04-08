@@ -172,15 +172,41 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 
 	player := obj.players[uid]
 	if player.seatID >= 0 {
-		obj.notifyOthers(player.conn,
-			&msg.Protocol{
-				Msgid: msg.MessageID_Disconnect_Notify,
-				DisconnectNotify: &msg.DisconnectNotify{
-					Uid: uid,
-				}})
-		player.conn = nil
+		// 玩家在座位上
+		if obj.round.state == msg.GameState_Ready || obj.round.state == msg.GameState_Bet {
+			// 将断线玩家踢离房间
+			obj.tablePlayers[player.seatID] = nil
+			userManager.leaveRoom(player.uid, obj)
+			player.conn.user.room = nil
+			obj.notifyOthers(player.conn,
+				&msg.Protocol{
+					Msgid: msg.MessageID_LeaveRoom_Notify,
+					LeaveRoomNotify: &msg.LeaveRoomNotify{
+						Uid: player.conn.user.uid,
+					}},
+			)
+			delete(obj.players, uid)
+		} else {
+			// 通知其他玩家
+			obj.notifyOthers(player.conn,
+				&msg.Protocol{
+					Msgid: msg.MessageID_Disconnect_Notify,
+					DisconnectNotify: &msg.DisconnectNotify{
+						Uid: uid,
+					}})
+
+			// 设置成断线
+			player.conn = nil
+		}
 	} else {
 		// 如果是围观玩家，则立即踢离房间
+		obj.notifyOthers(player.conn,
+			&msg.Protocol{
+				Msgid: msg.MessageID_LeaveRoom_Notify,
+				LeaveRoomNotify: &msg.LeaveRoomNotify{
+					Uid: player.conn.user.uid,
+				}},
+		)
 		delete(obj.players, uid)
 		userManager.leaveRoom(uid, obj)
 	}
@@ -297,7 +323,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		player := &RoomPlayer{
 			uid:    p.userconn.user.uid,
 			name:   p.userconn.user.name,
-			avatar: p.userconn.user.platformUser.GetAvatarURL(),
+			avatar: p.userconn.user.avatar,
 			conn:   p.userconn,
 			seatID: -1,
 		}

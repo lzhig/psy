@@ -24,6 +24,7 @@ var roomNumberGenerator = &RoomNumberGenerator{}
 var dealer = &Dealer{}
 var diamondsCenter = &DiamondsCenter{}
 var careerCenter = &CareerCenter{}
+var versionService = &VersionService{}
 
 // App type
 type App struct {
@@ -53,6 +54,8 @@ func (obj *App) Init() error {
 	runtime.GOMAXPROCS(obj.config.CPUNum)
 
 	obj.App.Init()
+
+	versionService.Start(obj.config.VersionService.Addr, obj.config.VersionService.File)
 
 	mysqlCfg := obj.config.Mysql
 	if err := db.open(mysqlCfg.Addr, mysqlCfg.Username, mysqlCfg.Password, mysqlCfg.Db, mysqlCfg.MaxConns); err != nil {

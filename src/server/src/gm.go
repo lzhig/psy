@@ -31,7 +31,7 @@ func userCountHandler(w http.ResponseWriter, r *http.Request) {
 
 func gmExit(w http.ResponseWriter, r *http.Request) {
 	gApp.Exit()
-	io.WriteString(w, "exit.")
+	io.WriteString(w, "exit.\r\n")
 }
 
 func gmOperationHandler(w http.ResponseWriter, r *http.Request) {
