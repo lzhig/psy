@@ -117,10 +117,65 @@ func (obj *mysqlDB) saveUserDiamonds(uid, diamonds uint32) error {
 	return err
 }
 
+func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
+	// 今天0点
+	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
+	y, m, d := time.Now().Date()
+	today := t.AddDate(y-1, int(m)-1, d-1).Unix()
+	tx, err := obj.db.Begin()
+	if err != nil {
+		base.LogError("GiveFreeDiamonds: failed to start a transaction, error:", err)
+		return err
+	}
+
+	exist := false
+	var lastTime int64
+	err = obj.db.QueryRow("select time from free_diamonds where uid=?", uid).Scan(&lastTime)
+	switch {
+	case err == sql.ErrNoRows:
+		// 用户还没有领取过
+	case err != nil:
+		base.LogError("GiveFreeDiamonds: query uid, error:", err, ", uid:", uid)
+		return err
+	default:
+		exist = true
+		if lastTime >= today {
+			// 今天已经领取过了
+			return nil
+		}
+	}
+
+	result, err := obj.db.Exec("update users set diamonds=? where uid=? and diamonds<?", diamonds, uid, diamonds)
+	if err != nil {
+		base.LogError("GiveFreeDiamonds: failed to exec, error:", err, ", uid:", uid, ", diamonds:", diamonds)
+		return err
+	}
+	n, _ := result.RowsAffected()
+	if n == 1 {
+		var sql string
+		if exist {
+			sql = "update free_diamonds set `time`=? where uid=?"
+		} else {
+			sql = "insert into free_diamonds (`time`,uid) values(?,?)"
+		}
+		_, err := obj.db.Exec(sql, time.Now().Unix(), uid)
+		if err != nil {
+			base.LogError("GiveFreeDiamonds: failed to exec, error:", err, ", uid:", uid, ", today:", today)
+			tx.Rollback()
+			return err
+		}
+		tx.Commit()
+		return nil
+	}
+	tx.Rollback()
+
+	return nil
+}
+
 var ErrorNotEnoughDiamonds = errors.New("diamonds are not enough")
 
-func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32) error {
-	result, err := obj.db.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds, from, diamonds)
+func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, keep uint32) error {
+	result, err := obj.db.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds, from, diamonds+keep)
 	if err != nil {
 		return err
 	}

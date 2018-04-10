@@ -28,8 +28,11 @@
         "scoreboard_count_per_time":10
     },
     "user":{
-        "init_diamonds":10000,
         "facebook_avatar_type":"normal"
+    },
+    "diamonds":{
+        "init_diamonds":10000,
+        "send_diamonds_fee":0.05
     },
     "version_service":{
         "addr":":8012",

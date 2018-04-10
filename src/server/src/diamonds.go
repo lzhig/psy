@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"./msg"
@@ -10,7 +11,8 @@ import (
 
 // DiamondsCenter 钻石交易
 type DiamondsCenter struct {
-	protoChan chan *ProtocolConnection
+	freeDiamonds FreeDiamonds
+	protoChan    chan *ProtocolConnection
 }
 
 func (obj *DiamondsCenter) init() {
@@ -62,8 +64,8 @@ func (obj *DiamondsCenter) handleBusy(p *ProtocolConnection) {
 }
 
 // Pay function
-func (obj *DiamondsCenter) Pay(from, to uint32, diamonds uint32) error {
-	return db.PayDiamonds(from, to, diamonds)
+func (obj *DiamondsCenter) Pay(from, to uint32, diamonds uint32, keep uint32) error {
+	return db.PayDiamonds(from, to, diamonds, keep)
 }
 
 func (obj *DiamondsCenter) handleSendDiamondsReq(p *ProtocolConnection) {
@@ -90,7 +92,9 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(p *ProtocolConnection) {
 		return
 	}
 
-	err = obj.Pay(p.userconn.user.uid, req.Uid, req.Diamonds)
+	diamondsWithFee := uint32(math.Ceil(float64(req.Diamonds) * (float64(1) + gApp.config.Diamonds.SendDiamondsFee)))
+
+	err = obj.Pay(p.userconn.user.uid, req.Uid, diamondsWithFee, obj.freeDiamonds.GetDiamondsKept())
 	if err == ErrorNotEnoughDiamonds {
 		rsp.SendDiamondsRsp.Ret = msg.ErrorID_SendDiamonds_Not_Enough_Diamonds
 		return
@@ -174,4 +178,26 @@ func (obj *DiamondsCenter) handleDiamondsRecordsReq(p *ProtocolConnection) {
 		rsp.DiamondsRecordsRsp.Users[i] = user
 		i++
 	}
+}
+
+// FreeDiamonds 类型负责赠送免费钻石
+// 1. 注册时赠送钻石
+// 2. 每天第一次登录时，若用户钻石低于某个数值时，赠送钻石
+// 3. 发送钻石时，用户需要保留若干数值的钻石不能发送
+type FreeDiamonds struct {
+}
+
+// GetFreeDiamondsWhenRegister 返回注册时赠送钻石数
+func (obj *FreeDiamonds) GetFreeDiamondsWhenRegister() uint32 {
+	return gApp.config.Diamonds.InitDiamonds
+}
+
+// GiveFreeDiamondsEveryDay 每天第一次登录时，若用户钻石低于某个数值时，赠送钻石
+func (obj *FreeDiamonds) GiveFreeDiamondsEveryDay(uid uint32) {
+	db.GiveFreeDiamonds(uid, gApp.config.Diamonds.InitDiamonds)
+}
+
+// GetDiamondsKept 返回用户发送钻石时，需要保留的钻石数
+func (obj *FreeDiamonds) GetDiamondsKept() uint32 {
+	return gApp.config.Diamonds.InitDiamonds
 }

@@ -75,7 +75,7 @@ func (obj *UserManager) loadUser(user PlatformUser) error {
 // }
 
 func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
-	uid, err := db.CreateUser(pu.GetName(), pu.GetAvatarURL(), gApp.config.User.InitDiamonds, pu.GetPlatformID())
+	uid, err := db.CreateUser(pu.GetName(), pu.GetAvatarURL(), diamondsCenter.freeDiamonds.GetFreeDiamondsWhenRegister(), pu.GetPlatformID())
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +114,7 @@ func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnecti
 }
 
 func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
+	diamondsCenter.freeDiamonds.GiveFreeDiamondsEveryDay(uid)
 	name, _, avatar, diamonds, err := db.GetUserProfile(uid)
 	if err != nil {
 		return nil, err

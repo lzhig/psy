@@ -89,10 +89,13 @@ func (obj *App) Init() error {
 
 	base.LogInfo("init done.")
 
-	// t := time.Time{}
-	// y, m, d := time.Now().AddDate(0, 0, 1).Date()
+	// t, err := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
+	// fmt.Println(t.Unix(), err)
+	// fmt.Println(t.Date())
+	// y, m, d := time.Now().AddDate(0, 0, 0).Date()
 	// t = t.AddDate(y-1, int(m)-1, d-1)
 	// fmt.Println(t.Format("2006-1-2 15:4:5"))
+	// fmt.Println(t.Unix())
 
 	// a := `{"error":{"message":"Unsupported get request. Object with ID '1637239499921854' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https:\/\/developers.facebook.com\/docs\/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"BlfdHAICYcb"}}`
 	// b := checkResult{}

@@ -40,6 +40,16 @@ CREATE TABLE `facebook_users` (
   UNIQUE KEY `index_fbid` (`fbid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+/*Table structure for table `free_diamonds` */
+
+DROP TABLE IF EXISTS `free_diamonds`;
+
+CREATE TABLE `free_diamonds` (
+  `uid` int(10) unsigned NOT NULL,
+  `time` int(10) unsigned NOT NULL COMMENT '上一次领取的时间',
+  PRIMARY KEY (`uid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 /*Table structure for table `game_records` */
 
 DROP TABLE IF EXISTS `game_records`;
@@ -70,7 +80,8 @@ CREATE TABLE `room_records` (
   `closed` tinyint(1) DEFAULT NULL COMMENT '是否已关闭',
   PRIMARY KEY (`room_id`),
   KEY `index_number_closed` (`number`,`closed`),
-  KEY `index_owner_closed` (`owner_uid`,`closed`)
+  KEY `index_owner_closed` (`owner_uid`,`closed`),
+  KEY `index_create_time` (`create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `scoreboard` */
@@ -81,7 +92,8 @@ CREATE TABLE `scoreboard` (
   `roomid` int(10) unsigned NOT NULL,
   `uid` int(10) unsigned NOT NULL,
   `score` int(11) DEFAULT NULL,
-  KEY `roomid_uid_index` (`roomid`,`uid`)
+  KEY `index_roomid_uid` (`roomid`,`uid`),
+  KEY `index_uid` (`uid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `users` */

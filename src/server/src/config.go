@@ -43,8 +43,12 @@ type roomConfig struct {
 }
 
 type userConfig struct {
-	InitDiamonds       uint32 `json:"init_diamonds"`
 	FacebookAvatarType string `json:"facebook_avatar_type"`
+}
+
+type diamondsConfig struct {
+	InitDiamonds    uint32  `json:"init_diamonds"`
+	SendDiamondsFee float64 `json:"send_diamonds_fee"`
 }
 
 type versionServiceConfig struct {
@@ -61,6 +65,7 @@ type Config struct {
 	Mysql          mysqlConfig          `json:"mysql"`
 	Room           roomConfig           `json:"room"`
 	User           userConfig           `json:"user"`
+	Diamonds       diamondsConfig       `json:"diamonds"`
 	VersionService versionServiceConfig `json:"version_service"`
 }
 

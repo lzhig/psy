@@ -50,6 +50,10 @@ func (obj *Round) bet(seatID uint32, chips uint32) bool {
 	return true
 }
 
+func (obj *Round) unbet(seatID uint32) {
+	delete(obj.betChips, seatID)
+}
+
 func (obj *Round) isAllBet() bool {
 	//return len(obj.betChips) == int(gApp.config.Room.MaxTablePlayers)
 	return len(obj.betChips) == obj.room.getTablePlayersCount()-1

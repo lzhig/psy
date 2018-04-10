@@ -35,7 +35,7 @@ func (obj *CareerCenter) handleCareerWinLoseData(p *ProtocolConnection) {
 
 	uid := p.userconn.user.uid
 
-	t := time.Time{}
+	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
 	y, m, d := time.Now().AddDate(0, 0, 1).Date()
 	end := t.AddDate(y-1, int(m)-1, d-1)
 	rsp.CareerWinLoseDataRsp.Data = make([]*msg.CareerWinLoseDataItem, len(req.Days))
@@ -77,7 +77,7 @@ func (obj *CareerCenter) handleCareerRoomRecords(p *ProtocolConnection) {
 	uid := p.userconn.user.uid
 
 	req := p.p.CareerRoomRecordsReq
-	t := time.Time{}
+	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
 	y, m, d := time.Now().AddDate(0, 0, 1).Date()
 	end := t.AddDate(y-1, int(m)-1, d-1)
 	begin := end.AddDate(0, 0, -int(req.Days))

@@ -171,35 +171,8 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	uid := args[0].(uint32)
 
 	player := obj.players[uid]
-	if player.seatID >= 0 {
-		// 玩家在座位上
-		if obj.round.state == msg.GameState_Ready || obj.round.state == msg.GameState_Bet {
-			// 将断线玩家踢离房间
-			obj.tablePlayers[player.seatID] = nil
-			userManager.leaveRoom(player.uid, obj)
-			player.conn.user.room = nil
-			obj.notifyOthers(player.conn,
-				&msg.Protocol{
-					Msgid: msg.MessageID_LeaveRoom_Notify,
-					LeaveRoomNotify: &msg.LeaveRoomNotify{
-						Uid: player.conn.user.uid,
-					}},
-			)
-			delete(obj.players, uid)
-		} else {
-			// 通知其他玩家
-			obj.notifyOthers(player.conn,
-				&msg.Protocol{
-					Msgid: msg.MessageID_Disconnect_Notify,
-					DisconnectNotify: &msg.DisconnectNotify{
-						Uid: uid,
-					}})
-
-			// 设置成断线
-			player.conn = nil
-		}
-	} else {
-		// 如果是围观玩家，则立即踢离房间
+	if (player.seatID >= 0 && (obj.round.state == msg.GameState_Ready || obj.round.state == msg.GameState_Bet)) ||
+		player.seatID < 0 {
 		obj.notifyOthers(player.conn,
 			&msg.Protocol{
 				Msgid: msg.MessageID_LeaveRoom_Notify,
@@ -207,8 +180,25 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 					Uid: player.conn.user.uid,
 				}},
 		)
-		delete(obj.players, uid)
-		userManager.leaveRoom(uid, obj)
+
+		if player.seatID > 0 {
+			// 取消下注
+			obj.round.unbet(uint32(player.seatID))
+		}
+
+		// 将断线玩家踢离房间
+		obj.kickPlayer(player.uid)
+	} else {
+		// 通知其他玩家
+		obj.notifyOthers(player.conn,
+			&msg.Protocol{
+				Msgid: msg.MessageID_Disconnect_Notify,
+				DisconnectNotify: &msg.DisconnectNotify{
+					Uid: uid,
+				}})
+
+		// 设置成断线
+		player.conn = nil
 	}
 }
 
@@ -416,16 +406,14 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 		return
 	}
 
-	// todo: 检查入座和游戏中
-
-	// 如果可以离座，就先离座
-	if player.seatID >= 0 {
-		obj.tablePlayers[player.seatID] = nil
+	// 检查入座和游戏中
+	if player.seatID >= 0 && obj.round.state >= msg.GameState_Confirm_Bet && obj.round.state <= msg.GameState_Result {
+		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Playing
+		return
 	}
 
-	delete(obj.players, p.userconn.user.uid)
+	obj.kickPlayer(player.uid)
 	debug("leave room. uid:", p.userconn.user.uid)
-	userManager.leaveRoom(p.userconn.user.uid, obj)
 
 	// 通知房间其他人
 	obj.notifyAll(
@@ -435,8 +423,6 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 				Uid: p.userconn.user.uid,
 			}},
 	)
-
-	p.userconn.user.room = nil
 }
 
 func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
@@ -897,4 +883,18 @@ func (obj *Room) handleGetRoundHistoryReq(p *ProtocolConnection) {
 		}
 		i++
 	}
+}
+
+func (obj *Room) kickPlayer(uid uint32) {
+	player, ok := obj.players[uid]
+	if !ok {
+		return
+	}
+
+	if player.seatID >= 0 {
+		obj.tablePlayers[player.seatID] = nil
+	}
+
+	userManager.leaveRoom(player.uid, obj)
+	delete(obj.players, player.uid)
 }
