@@ -407,7 +407,7 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 	}
 
 	// 检查入座和游戏中
-	if player.seatID >= 0 && obj.round.state >= msg.GameState_Confirm_Bet && obj.round.state <= msg.GameState_Result {
+	if player.seatID >= 0 && obj.round.state >= msg.GameState_Confirm_Bet && obj.round.state < msg.GameState_Result {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Playing
 		return
 	}
