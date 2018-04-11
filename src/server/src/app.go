@@ -89,6 +89,9 @@ func (obj *App) Init() error {
 
 	base.LogInfo("init done.")
 
+	// fmt.Println(time.Now().Unix())
+	// t, err := time.ParseInLocation("2006-1-2 15:4:5", time.Now().Format("2006-1-2 15:4:5"), time.Local)
+	// fmt.Println(t.Unix(), err)
 	// t, err := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
 	// fmt.Println(t.Unix(), err)
 	// fmt.Println(t.Date())

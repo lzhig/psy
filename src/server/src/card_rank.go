@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	Card_A_Value = 12
-	Card_2_Value = 0
+	cardAValue = 12
+	card2Value = 0
 )
 
 // Card type
@@ -29,14 +29,6 @@ func calculateCardRank(cards []uint32) msg.CardRank {
 		value[ndx] = ndx
 	}
 	sortCards(c, value)
-	// sort.Slice(value,
-	// 	func(i, j int) bool {
-	// 		if c[value[i]].value == c[value[j]].value {
-	// 			return c[value[i]].color > c[value[j]].color
-	// 		}
-	// 		return c[value[i]].value > c[value[j]].value
-	// 	},
-	// )
 
 	// 统计相同的个数,key为牌面大小
 	sameCards := make(map[uint32]*struct {
@@ -149,32 +141,21 @@ func calculateStraightFlush(cards []Card, value []int, num int) bool {
 			break
 		}
 	}
-
-	if !found {
-		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A，排序
-			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
-			return true
-		}
-		return false
+	if found {
+		return true
 	}
 
-	return true
+	if cards[value[0]].value == cardAValue &&
+		cards[value[1]].value == card2Value+3 &&
+		cards[value[2]].value == card2Value+2 &&
+		cards[value[3]].value == card2Value+1 &&
+		cards[value[4]].value == card2Value {
+		// 5 4 3 2 A，排序
+		value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+		return true
+	}
+	return false
 }
-
-// func calculateFourOfAKind(cards []Card, value []int, num int) bool {
-// 	diff := 0
-// 	for i := 0; i < num-1; i++ {
-// 		if cards[value[i]].value != cards[value[i+1]].value {
-// 			diff++
-// 			if diff > 1 {
-// 				return false
-// 			}
-// 		}
-// 	}
-
-// 	return true
-// }
 
 func calculateFlush(cards []Card, value []int, num int) bool {
 	for i := 0; i < num-1; i++ {
@@ -187,7 +168,6 @@ func calculateFlush(cards []Card, value []int, num int) bool {
 }
 
 func calculateStraight(cards []Card, value []int, num int) bool {
-
 	found := true
 	for i := 0; i < num-1; i++ {
 		if cards[value[i]].value != cards[value[i+1]].value+1 {
@@ -195,17 +175,20 @@ func calculateStraight(cards []Card, value []int, num int) bool {
 			break
 		}
 	}
-
-	if !found {
-		if cards[value[0]].value == Card_A_Value && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A 排序
-			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
-			return true
-		}
-		return false
+	if found {
+		return true
 	}
 
-	return true
+	if cards[value[0]].value == cardAValue &&
+		cards[value[1]].value == card2Value+3 &&
+		cards[value[2]].value == card2Value+2 &&
+		cards[value[3]].value == card2Value+1 &&
+		cards[value[4]].value == card2Value {
+		// 5 4 3 2 A 排序
+		value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+		return true
+	}
+	return false
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -213,6 +196,9 @@ func calculateStraight(cards []Card, value []int, num int) bool {
 func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 	num := len(cards)
 	if num+len(form) < n {
+		return nil, msg.CardRank_High_Card, false
+	}
+	if len(form) > n {
 		return nil, msg.CardRank_High_Card, false
 	}
 
@@ -287,6 +273,9 @@ func findCardRankWithMatch(cards []Card, value []int, f []Card, fv []int, n int,
 	if !match(f, fv, n, needSort) {
 		return nil, nil, false
 	}
+	if len(fv) == n {
+		return f, fv, true
+	}
 
 	return findRecursive(cards, value, f, fv, n, match, needSort)
 }
@@ -360,36 +349,24 @@ func matchStraightFlush5432A(cards []Card, value []int, n int, needSort bool) bo
 
 	l := len(value)
 	for i := 0; i < l-1; i++ {
-		if cards[value[i]].value == cards[value[i+1]].value {
-			return false
-		}
 		if cards[value[i]].color != cards[value[i+1]].color {
 			return false
 		}
 	}
-	// 如果为A，判断A 2 3 4 5的情况
-	if l > 1 && cards[value[0]].value == Card_A_Value {
-		if cards[value[l-1]].value != uint32(5-l) && cards[value[l-1]].value != uint32(13-l) {
-			return false
-		}
 
-		for i := 1; i < l-1; i++ {
-			if cards[value[i]].value != cards[value[i+1]].value+1 {
-				return false
-			}
-		}
-
-		if l == 5 && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A重新排序
-			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
-		}
-		return true
-	}
-
-	if l > 2 && cards[value[0]].value-cards[value[l-1]].value > 4 {
+	if l > 0 && cards[value[0]].value != cardAValue {
 		return false
 	}
+	for i := 1; i < l; i++ {
+		if int(cards[value[i]].value) != 5-i-1 {
+			return false
+		}
+	}
 
+	if l == 5 {
+		// 5 4 3 2 A重新排序
+		value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+	}
 	return true
 }
 
@@ -415,6 +392,10 @@ func matchFourOfAKind(cards []Card, value []int, n int, needSort bool) bool {
 		} else {
 			same++
 			if same == 3 {
+				if l == 5 && i == 3 {
+					// 重新排序, 把第1张单牌移到最后1张
+					value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+				}
 				return true
 			}
 		}
@@ -451,6 +432,11 @@ func matchFullHouse(cards []Card, value []int, n int, needSort bool) bool {
 				return false
 			}
 		}
+	}
+
+	if len(value) == 5 && cards[value[1]].value != cards[value[2]].value {
+		// 重新排序, 将一对排到3条后面
+		value[0], value[1], value[2], value[3], value[4] = value[2], value[3], value[4], value[0], value[1]
 	}
 
 	return true
@@ -506,32 +492,19 @@ func matchStraight5432A(cards []Card, value []int, n int, needSort bool) bool {
 	}
 
 	l := len(value)
-	for i := 0; i < l-1; i++ {
-		if cards[value[i]].value == cards[value[i+1]].value {
-			return false
-		}
-	}
-	// 如果为A，判断A 2 3 4 5的情况
-	if l > 1 && cards[value[0]].value == Card_A_Value {
-		if cards[value[l-1]].value != uint32(5-l) {
-			return false
-		}
-		for i := 1; i < l-1; i++ {
-			if cards[value[i]].value != cards[value[i+1]].value+1 {
-				return false
-			}
-		}
-		if l == 5 && cards[value[4]].value == Card_2_Value {
-			// 5 4 3 2 A重新排序
-			value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
-		}
-		return true
-	}
-
-	if l > 2 && cards[value[0]].value-cards[value[l-1]].value > 4 {
+	if l > 0 && cards[value[0]].value != cardAValue {
 		return false
 	}
+	for i := 1; i < l; i++ {
+		if int(cards[value[i]].value) != 5-i-1 {
+			return false
+		}
+	}
 
+	if l == 5 {
+		// 5 4 3 2 A重新排序
+		value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+	}
 	return true
 }
 
@@ -553,6 +526,14 @@ func matchThreeOfAKind(cards []Card, value []int, n int, needSort bool) bool {
 		} else {
 			same++
 			if same == 2 {
+				if l == 5 {
+					// 重新排序
+					if cards[value[1]].value == cards[value[2]].value && cards[value[2]].value == cards[value[3]].value {
+						value[0], value[1], value[2], value[3] = value[1], value[2], value[3], value[0]
+					} else if cards[value[2]].value == cards[value[3]].value && cards[value[3]].value == cards[value[4]].value {
+						value[0], value[1], value[2], value[3], value[4] = value[2], value[3], value[4], value[0], value[1]
+					}
+				}
 				return true
 			}
 		}
@@ -589,6 +570,14 @@ func matchTwoPair(cards []Card, value []int, n int, needSort bool) bool {
 			if same == 1 {
 				sametime++
 				if sametime == 2 {
+					if l == 5 {
+						// 重新排序
+						if cards[value[0]].value != cards[value[1]].value {
+							value[0], value[1], value[2], value[3], value[4] = value[1], value[2], value[3], value[4], value[0]
+						} else if cards[value[1]].value != cards[value[2]].value && cards[value[2]].value != cards[value[3]].value {
+							value[2], value[3], value[4] = value[3], value[4], value[2]
+						}
+					}
 					return true
 				}
 			}
@@ -627,6 +616,17 @@ func matchOnePair(cards []Card, value []int, n int, needSort bool) bool {
 	}
 	if l == n {
 		if (n == 3 || n == 5) && sametime == 1 {
+			if n == 3 && cards[value[1]].value == cards[value[2]].value {
+				value[0], value[1], value[2] = value[1], value[2], value[0]
+			} else if n == 5 {
+				if cards[value[1]].value == cards[value[2]].value {
+					value[0], value[1], value[2] = value[1], value[2], value[0]
+				} else if cards[value[2]].value == cards[value[3]].value {
+					value[0], value[1], value[2], value[3] = value[2], value[3], value[0], value[1]
+				} else if cards[value[3]].value == cards[value[4]].value {
+					value[0], value[1], value[2], value[3], value[4] = value[3], value[4], value[0], value[1], value[2]
+				}
+			}
 			return true
 		}
 		return false

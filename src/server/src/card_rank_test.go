@@ -165,14 +165,21 @@ func Test_findCardRank(t *testing.T) {
 		{
 			name:  "four_of_a_kind",
 			args:  args{cards: []uint32{2, 5, 45, 6, 7, 8, 19, 20, 21, 22, 32}, form: []uint32{}, n: 5},
-			want:  []uint32{22, 45, 32, 19, 6},
+			want:  []uint32{45, 32, 19, 6, 22},
+			want1: msg.CardRank_Four_Of_A_Kind,
+			want2: true,
+		},
+		{
+			name:  "four_of_a_kind_1",
+			args:  args{cards: []uint32{5, 45, 19, 6, 32}, form: []uint32{}, n: 5},
+			want:  []uint32{45, 32, 19, 6, 5},
 			want1: msg.CardRank_Four_Of_A_Kind,
 			want2: true,
 		},
 		{
 			name:  "full_house",
 			args:  args{cards: []uint32{2, 5, 45, 6, 7, 8, 19, 20, 21, 22, 15}, form: []uint32{}, n: 5},
-			want:  []uint32{21, 8, 45, 19, 6},
+			want:  []uint32{45, 19, 6, 21, 8},
 			want1: msg.CardRank_Full_House,
 			want2: true,
 		},
@@ -207,28 +214,28 @@ func Test_findCardRank(t *testing.T) {
 		{
 			name:  "three_of_a_kind",
 			args:  args{cards: []uint32{2, 45, 6, 18, 20, 21, 23, 32}, form: []uint32{}, n: 5},
-			want:  []uint32{23, 21, 45, 32, 6},
+			want:  []uint32{45, 32, 6, 23, 21},
 			want1: msg.CardRank_Three_Of_A_Kind,
 			want2: true,
 		},
 		{
 			name:  "two_pair",
 			args:  args{cards: []uint32{2, 45, 16, 18, 20, 21, 8, 32}, form: []uint32{}, n: 5},
-			want:  []uint32{21, 8, 20, 45, 32},
+			want:  []uint32{21, 8, 45, 32, 20},
 			want1: msg.CardRank_Two_Pair,
 			want2: true,
 		},
 		{
 			name:  "one_pair",
 			args:  args{cards: []uint32{2, 45, 16, 18, 20, 21, 32}, form: []uint32{}, n: 5},
-			want:  []uint32{21, 20, 45, 32, 18},
+			want:  []uint32{45, 32, 21, 20, 18},
 			want1: msg.CardRank_One_Pair,
 			want2: true,
 		},
 		{
-			name:  "high_card",
+			name:  "one_pair_1",
 			args:  args{cards: []uint32{2, 45, 16, 18, 20, 21, 33}, form: []uint32{}, n: 5},
-			want:  []uint32{21, 33, 20, 45, 18},
+			want:  []uint32{33, 20, 21, 45, 18},
 			want1: msg.CardRank_One_Pair,
 			want2: true,
 		},
@@ -253,6 +260,34 @@ func Test_findCardRank(t *testing.T) {
 			want1: msg.CardRank_High_Card,
 			want2: true,
 		},
+		{
+			name:  "test-2",
+			args:  args{cards: []uint32{}, form: []uint32{23, 0, 45, 32, 6}, n: 5},
+			want:  []uint32{45, 32, 6, 23, 0},
+			want1: msg.CardRank_Three_Of_A_Kind,
+			want2: true,
+		},
+		{
+			name:  "test-3",
+			args:  args{cards: nil, form: []uint32{49, 23, 26, 0, 15}, n: 5},
+			want:  []uint32{49, 23, 26, 0, 15},
+			want1: msg.CardRank_Two_Pair,
+			want2: true,
+		},
+		{
+			name:  "test-4",
+			args:  args{cards: nil, form: []uint32{50, 35, 48}, n: 3},
+			want:  []uint32{48, 35, 50},
+			want1: msg.CardRank_One_Pair,
+			want2: true,
+		},
+		{
+			name:  "test-5",
+			args:  args{cards: nil, form: []uint32{12, 11, 7, 3, 0}, n: 5},
+			want:  []uint32{12, 11, 7, 3, 0},
+			want1: msg.CardRank_Flush,
+			want2: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -266,7 +301,7 @@ func Test_findCardRank(t *testing.T) {
 			if got2 != tt.want2 {
 				t.Errorf("findCardRank() got2 = %v, want %v", got2, tt.want2)
 			}
-			fmt.Println(got)
+			fmt.Println(got, got1)
 		})
 	}
 }

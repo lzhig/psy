@@ -226,9 +226,9 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 	case msg.GameState_CloseRoom:
 		obj.room.closed = true
-		// kick all players
 		obj.room.notifyAll(notify)
 
+		// kick all players
 		for _, player := range obj.room.players {
 			//delete(obj.room.players, player.uid)
 			if player.seatID >= 0 {
@@ -338,25 +338,27 @@ func (obj *Round) calculateResult() {
 			// 自动组牌
 			autoCombine := false
 			num := 3
+			if ndx != 0 {
+				num = 5
+			}
 			if ndx == 0 && len(group.Cards) < 3 {
 				autoCombine = true
 			} else if ndx != 0 && len(group.Cards) < 5 {
 				autoCombine = true
-				num = 5
 			}
 			if autoCombine {
 				formCards, rank, ok := findCardRank(leftCards, group.Cards, num)
 				base.LogInfo(formCards, rank, ok)
 				if !ok {
-					base.LogError("[Round][calculateResult]failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
+					base.LogError("failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
 					rank = msg.CardRank_High_Card
 				} else {
 					// 移去用掉的牌
 					pos := 0
 					for _, v := range formCards {
-						for ndx, c := range leftCards {
+						for i, c := range leftCards {
 							if v == c {
-								leftCards[pos], leftCards[ndx] = leftCards[ndx], leftCards[pos]
+								leftCards[pos], leftCards[i] = leftCards[i], leftCards[pos]
 								pos++
 							}
 						}
@@ -365,10 +367,17 @@ func (obj *Round) calculateResult() {
 					group.Cards = formCards
 				}
 				result.Ranks[ndx] = rank
-				continue
+			} else {
+				//result.Ranks[ndx] = calculateCardRank(group.Cards)
+				formCards, rank, ok := findCardRank(nil, group.Cards, num)
+				base.LogInfo(formCards, rank, ok)
+				if !ok {
+					base.LogError("failed to find card rank. group.Cards=", group.Cards)
+					rank = msg.CardRank_High_Card
+				}
+				result.Ranks[ndx] = rank
+				group.Cards = formCards
 			}
-
-			result.Ranks[ndx] = calculateCardRank(group.Cards)
 		}
 	}
 
