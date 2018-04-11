@@ -412,6 +412,11 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 		return
 	}
 
+	needSwitchToReady := false
+	if obj.round.state == msg.GameState_Bet && player.seatID == 0 {
+		needSwitchToReady = true
+	}
+
 	obj.kickPlayer(player.uid)
 	debug("leave room. uid:", p.userconn.user.uid)
 
@@ -423,6 +428,10 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 				Uid: p.userconn.user.uid,
 			}},
 	)
+
+	if needSwitchToReady {
+		obj.round.switchGameState(msg.GameState_Ready)
+	}
 }
 
 func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
@@ -500,11 +509,10 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 	}
 	rspProto := rsp.StandUpRsp
 
-	defer p.userconn.sendProtocol(rsp)
-
 	// 检查状态
 	if !obj.round.canStandUp() {
 		rspProto.Ret = msg.ErrorID_StandUp_Cannot_Stand_Up
+		p.userconn.sendProtocol(rsp)
 		return
 	}
 
@@ -512,13 +520,17 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 	if player == nil {
 		base.LogError("[Room][handleStandUpReq] cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
 		rspProto.Ret = msg.ErrorID_Internal_Error
+		p.userconn.sendProtocol(rsp)
 		return
 	}
 
 	if player.seatID == -1 {
 		rspProto.Ret = msg.ErrorID_StandUp_Not_Sit
+		p.userconn.sendProtocol(rsp)
 		return
 	}
+
+	p.userconn.sendProtocol(rsp)
 
 	// 通知房间其他人
 	obj.notifyOthers(p.userconn,
@@ -533,6 +545,10 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 	// 此座位置空
 	obj.tablePlayers[player.seatID] = nil
 	player.seatID = -1
+
+	if player.seatID == 0 && obj.round.state == msg.GameState_Bet {
+		obj.round.switchGameState(msg.GameState_Ready)
+	}
 }
 
 func (obj *Room) handleAutoBankerReq(p *ProtocolConnection) {
