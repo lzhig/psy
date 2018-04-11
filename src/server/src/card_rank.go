@@ -236,7 +236,7 @@ func findCardRank(cards, form []uint32, n int) ([]uint32, msg.CardRank, bool) {
 		{rank: msg.CardRank_High_Card, match: matchHighCard},
 	}
 	sort := true
-	if len(fv) == 0 {
+	if len(fv) == 0 || num==0 {
 		sort = false
 	}
 
