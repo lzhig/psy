@@ -127,7 +127,8 @@ func (obj *LoginService) handleLogin(userconn *userConnection, p *msg.Protocol) 
 				} else {
 					if userManager.userIsConnected(uid) {
 						userManager.setUserConnection(uid, userconn)
-					} else if room, err := userManager.getRoomUserPlaying(uid); err == nil {
+					}
+					if room, err := userManager.getRoomUserPlaying(uid); err == nil {
 						// 如果是用户断线重连
 						rsp.LoginRsp.RoomNumber = roomNumberGenerator.decode(room.number)
 					}

@@ -177,7 +177,7 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 			&msg.Protocol{
 				Msgid: msg.MessageID_LeaveRoom_Notify,
 				LeaveRoomNotify: &msg.LeaveRoomNotify{
-					Uid: player.conn.user.uid,
+					Uid: uid,
 				}},
 		)
 
@@ -262,7 +262,7 @@ func (obj *Room) handleEventGetSeatPlayers(args []interface{}) {
 }
 func (obj *Room) notifyOthers(userconn *userConnection, p *msg.Protocol) {
 	for uid, player := range obj.players {
-		if uid == userconn.user.uid || player.conn == nil {
+		if userconn == nil || uid == userconn.user.uid || player.conn == nil {
 			continue
 		}
 
@@ -334,6 +334,7 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 		CreditPoints: obj.creditPoints,
 		IsShare:      obj.isShare,
 		Players:      make([]*msg.Player, len(obj.players)),
+		State:        obj.round.state,
 	}
 	//cards
 	if seatID >= 0 {
