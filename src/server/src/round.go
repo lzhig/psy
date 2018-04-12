@@ -222,6 +222,14 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			}
 		}()
 	case msg.GameState_Result:
+		// 先关闭房间
+		if obj.room.playedHands >= obj.room.hands-1 {
+			obj.room.closed = true
+			// update db
+			if err := db.CloseRoom(obj.room.roomID, time.Now().Unix()); err != nil {
+				base.LogError("Fail to close room. error:", err)
+			}
+		}
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_CloseRoom:
@@ -236,11 +244,6 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			}
 			userManager.leaveRoom(player.uid, obj.room)
 			player.conn.user.room = nil
-		}
-
-		// update db
-		if err := db.CloseRoom(obj.room.roomID, time.Now().Unix()); err != nil {
-			base.LogError("Fail to close room. error:", err)
 		}
 	}
 
