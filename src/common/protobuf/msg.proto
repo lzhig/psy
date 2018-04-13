@@ -126,6 +126,7 @@ enum ErrorID {
     SitDown_Invalid_Seat_Id = 130; // 没有此座位
     SitDown_Already_Exist_Player = 131; // 已经坐人了
     SitDown_Already_Sit = 132; // 已经坐在此座位上了
+    SitDown_CreditPoints_Out = 133; // 超出credit points限制，不能再入座
 
     StandUp_Not_Sit = 140; // 没有坐在座位上
     StandUp_Cannot_Stand_Up = 141; // 当前状态不能站起
@@ -294,7 +295,7 @@ message SendDiamondsRsp {
     ErrorID ret = 1;
 }
 
-// kick
+// kick, 同一账号登录
 message KickNotify {
 }
 
@@ -452,9 +453,17 @@ message StandUpRsp {
     ErrorID ret = 1;
 }
 
+enum StandUpReason {
+    Request = 0; // 主动请求
+    NoActionFor3Hands = 1; // 连续3局不下注
+    CreditPointsOut = 2; // 超出credit points限制
+    BankerNotAutoBanker = 3; // 庄家没有自动连庄
+}
+
 message StandUpNotify {
     uint32 uid = 1;
     uint32 seat_id = 2;
+    StandUpReason reason = 3; // 站起原因
 }
 
 // auto banker
