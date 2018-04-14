@@ -40,6 +40,7 @@ type roomConfig struct {
 	MaxBetRate             uint32   `json:"max_bet_rate"`
 	StatesCountdown        []uint32 `json:"states_countdown"`
 	ScoreboardCountPerTime uint32   `json:"scoreboard_count_per_time"`
+	KickNoBetForHands      uint32   `json:"kick_no_bet_for_hands"`
 }
 
 type userConfig struct {

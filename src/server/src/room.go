@@ -40,6 +40,7 @@ type RoomPlayer struct {
 	avatar string
 	conn   *userConnection
 	seatID int32 // -1 没有入座
+	handsNoBet uint32
 }
 
 func (obj *RoomPlayer) sendProtocol(p *msg.Protocol) {
@@ -471,6 +472,12 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 		return
 	}
 
+	// credit points
+	if obj.creditPoints > 0 && -obj.scoreboard.GetScore(p.userconn.user.uid) > int32(obj.creditPoints) {
+		rspProto.Ret = msg.ErrorID_SitDown_CreditPoints_Out
+		return
+	}
+
 	var sitDownType msg.SitDownType
 	if player.seatID == -1 {
 		// 新入座
@@ -540,6 +547,7 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 			StandUpNotify: &msg.StandUpNotify{
 				Uid:    p.userconn.user.uid,
 				SeatId: uint32(player.seatID),
+				Reason: msg.StandUpReason_Request,
 			}},
 	)
 

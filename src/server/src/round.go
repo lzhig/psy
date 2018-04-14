@@ -95,6 +95,44 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					obj.switchGameState(msg.GameState_CloseRoom)
 					return
 				}
+				// check credit points
+				if obj.room.creditPoints > 0 {
+					for seatID, player := range obj.room.tablePlayers {
+						if player != nil && -obj.room.scoreboard.GetScore(player.uid) > int32(obj.room.creditPoints) {
+							obj.room.tablePlayers[seatID] = nil
+							player.seatID = -1
+
+							obj.room.notifyAll(
+								&msg.Protocol{
+									Msgid: msg.MessageID_StandUp_Notify,
+									StandUpNotify: &msg.StandUpNotify{
+										Uid:    player.uid,
+										SeatId: uint32(seatID),
+										Reason: msg.StandUpReason_CreditPointsOut,
+									}},
+							)
+						}
+					}
+				}
+
+				// check no bet for 3 hands
+				for seatID, player := range obj.room.tablePlayers {
+					if player == nil || seatID == 0 || player.handsNoBet < gApp.config.Room.KickNoBetForHands {
+						continue
+					}
+					obj.room.tablePlayers[seatID] = nil
+					player.seatID = -1
+
+					obj.room.notifyAll(
+						&msg.Protocol{
+							Msgid: msg.MessageID_StandUp_Notify,
+							StandUpNotify: &msg.StandUpNotify{
+								Uid:    player.uid,
+								SeatId: uint32(seatID),
+								Reason: msg.StandUpReason_NoActionFor3Hands,
+							}},
+					)
+				}
 
 				// check autobanker
 				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
@@ -118,6 +156,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 							StandUpNotify: &msg.StandUpNotify{
 								Uid:    player.uid,
 								SeatId: uint32(0),
+								Reason: msg.StandUpReason_BankerNotAutoBanker,
 							}},
 					)
 					obj.switchGameState(msg.GameState_Ready)
@@ -166,6 +205,9 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 			if _, ok := obj.betChips[seatID]; ok {
 				obj.players[seatID] = player
+				player.handsNoBet = 0
+			} else {
+				player.handsNoBet++
 			}
 		}
 		obj.room.notifyAll(notify)
