@@ -20,6 +20,7 @@ func (obj *gameManager) Start(addr string) {
 		http.HandleFunc("/user", userCountHandler)
 		http.HandleFunc("/GmOperation", gmOperationHandler)
 		http.HandleFunc("/exit", gmExit)
+		http.HandleFunc("/updateVersion", gmUpdateVersion)
 		http.ListenAndServe(addr, nil)
 	}()
 }
@@ -32,6 +33,11 @@ func userCountHandler(w http.ResponseWriter, r *http.Request) {
 func gmExit(w http.ResponseWriter, r *http.Request) {
 	gApp.Exit()
 	io.WriteString(w, "exit.\r\n")
+}
+
+func gmUpdateVersion(w http.ResponseWriter, r *http.Request) {
+	versionService.UpdateVersionInfo()
+	io.WriteString(w, "updated version info.\r\n")
 }
 
 func gmOperationHandler(w http.ResponseWriter, r *http.Request) {
