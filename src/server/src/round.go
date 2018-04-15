@@ -95,6 +95,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					obj.switchGameState(msg.GameState_CloseRoom)
 					return
 				}
+
 				// check credit points
 				if obj.room.creditPoints > 0 {
 					for seatID, player := range obj.room.tablePlayers {
@@ -134,6 +135,17 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					)
 				}
 
+				// check disconnected players
+				for _, player := range obj.room.tablePlayers {
+					if player == nil {
+						continue
+					}
+
+					if player.conn == nil {
+						obj.room.kickPlayer(player.uid)
+					}
+				}
+
 				// check autobanker
 				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
 				if obj.room.autoBanker {
@@ -143,7 +155,28 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					// 局数+1
 					obj.room.nextRound()
 
-					obj.switchGameState(msg.GameState_Bet)
+					// 检查座位上有庄家并且有其他玩家
+					hasBanker := false
+					hasOthers := false
+					for _, player := range obj.room.tablePlayers {
+						if player != nil {
+							if player.seatID == 0 {
+								hasBanker = true
+							} else {
+								hasOthers = true
+							}
+
+							if hasBanker && hasOthers {
+								break
+							}
+						}
+					}
+
+					if hasBanker && hasOthers {
+						obj.switchGameState(msg.GameState_Bet)
+					} else {
+						obj.switchGameState(msg.GameState_Ready)
+					}
 				} else {
 					// 庄家站起
 					player := obj.room.tablePlayers[0]
@@ -193,12 +226,14 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 	case msg.GameState_Confirm_Bet:
 		// 确定参与玩家
+		hasBanker := false
 		for _, player := range obj.room.tablePlayers {
 			if player == nil || player.seatID < 0 {
 				continue
 			}
 			seatID := uint32(player.seatID)
 			if seatID == 0 {
+				hasBanker = true
 				obj.players[seatID] = player
 				continue
 			}
@@ -210,7 +245,11 @@ func (obj *Round) switchGameState(state msg.GameState) {
 				player.handsNoBet++
 			}
 		}
-		obj.room.notifyAll(notify)
+		if !hasBanker {
+			obj.switchGameState(msg.GameState_Ready)
+		} else {
+			obj.room.notifyAll(notify)
+		}
 
 	case msg.GameState_Deal:
 		// 对每个参与本轮游戏的玩家发牌
