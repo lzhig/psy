@@ -128,10 +128,11 @@ func (obj *LoginService) handleLogin(userconn *userConnection, p *msg.Protocol) 
 					if userManager.userIsConnected(uid) {
 						userManager.setUserConnection(uid, userconn)
 					}
-					if room, err := userManager.getRoomUserPlaying(uid); err == nil {
-						// 如果是用户断线重连
-						rsp.LoginRsp.RoomNumber = roomNumberGenerator.decode(room.number)
-					}
+					// login不再返回room number
+					// if room, err := userManager.getRoomUserPlaying(uid); err == nil {
+					// 	// 如果是用户断线重连
+					// 	rsp.LoginRsp.RoomNumber = roomNumberGenerator.decode(room.number)
+					// }
 
 					u.platformUser = user
 					u.name = user.GetName()

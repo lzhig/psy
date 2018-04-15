@@ -197,3 +197,15 @@ func (obj *RoomManager) handleCloseRoomReq(p *ProtocolConnection) {
 		return
 	}
 }
+
+func (obj *RoomManager) handleGetPlayingRoomReq(p *ProtocolConnection) {
+	rsp := &msg.Protocol{
+		Msgid:             msg.MessageID_GetPlayingRoom_Rsp,
+		GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_Ok},
+	}
+	defer p.userconn.sendProtocol(rsp)
+
+	if user := userManager.GetUser(p.userconn.user.uid); user != nil && user.room != nil {
+		rsp.GetPlayingRoomRsp.RoomNumber = roomNumberGenerator.decode(user.room.number)
+	}
+}

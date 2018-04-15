@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -11,54 +10,29 @@ import (
 
 // RoomManager type
 type RoomManager struct {
+	MessageHandlerImpl
+
 	rooms         sync.Map
 	roomsNumber   map[int]*Room
-	protoChan     chan *ProtocolConnection
-	handlers      map[msg.MessageID]func(*ProtocolConnection)
 	roomlocker    RoomLocker
 	roomCountdown RoomCountdown
 }
 
 func (obj *RoomManager) init() error {
+	obj.MessageHandlerImpl.Init()
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
 		return err
 	}
 	obj.roomsNumber = make(map[int]*Room)
 	obj.protoChan = make(chan *ProtocolConnection, 128)
-	obj.handlers = map[msg.MessageID]func(*ProtocolConnection){
-		msg.MessageID_CreateRoom_Req: obj.handleCreateRoomReq,
-		msg.MessageID_JoinRoom_Req:   obj.handleJoinRoomReq,
-		msg.MessageID_LeaveRoom_Req:  obj.handleLeaveRoomReq,
-		msg.MessageID_ListRooms_Req:  obj.handleListRoomsReq,
-		msg.MessageID_CloseRoom_Req:  obj.handleCloseRoomReq,
-	}
-	ctx, _ := gApp.CreateCancelContext()
-	gApp.GoRoutine(ctx, obj.loop)
+	obj.AddMessageHandler(msg.MessageID_CreateRoom_Req, obj.handleCreateRoomReq)
+	obj.AddMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
+	obj.AddMessageHandler(msg.MessageID_LeaveRoom_Req, obj.handleLeaveRoomReq)
+	obj.AddMessageHandler(msg.MessageID_ListRooms_Req, obj.handleListRoomsReq)
+	obj.AddMessageHandler(msg.MessageID_CloseRoom_Req, obj.handleCloseRoomReq)
+	obj.AddMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
 	return nil
-}
-
-// GetDispatchChan function
-func (obj *RoomManager) GetDispatchChan() chan<- *ProtocolConnection {
-	return obj.protoChan
-}
-
-func (obj *RoomManager) loop(ctx context.Context) {
-	defer debug("exit RoomManager goroutine")
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case p := <-obj.protoChan:
-			if handler, ok := obj.handlers[p.p.Msgid]; ok {
-				handler(p)
-			} else {
-				base.LogError("[RoomManager][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
-				p.userconn.Disconnect()
-			}
-		}
-	}
 }
 
 func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (*Room, error) {

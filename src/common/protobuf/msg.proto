@@ -97,6 +97,9 @@ enum MessageID {
 
     CareerRoomRecords_Req = 51;
     CareerRoomRecords_Rsp = 52;
+
+    GetPlayingRoom_Req = 53;
+    GetPlayingRoom_Rsp = 54;
 }
 
 enum ErrorID {
@@ -224,6 +227,9 @@ message Protocol {
 
     CareerRoomRecordsReq careerRoomRecordsReq = 53;
     CareerRoomRecordsRsp careerRoomRecordsRsp = 54;
+    
+    GetPlayingRoomReq getPlayingRoomReq = 55;
+    GetPlayingRoomRsp getPlayingRoomRsp = 56;
 }
 
 

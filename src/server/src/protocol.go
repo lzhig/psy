@@ -59,7 +59,7 @@ func (obj *protocolHandler) handleRoom(p *ProtocolConnection) {
 		msg.MessageID_LeaveRoom_Req,
 		msg.MessageID_ListRooms_Req,
 		msg.MessageID_CloseRoom_Req:
-		roomManager.GetDispatchChan() <- p
+		roomManager.Handle(p)
 
 	default:
 		if p.userconn.user.room != nil {
