@@ -80,7 +80,7 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	}
 
 	createTime := time.Now().Unix()
-	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints, req.IsShare, createTime)
+	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints*req.MaxBet, req.IsShare, createTime)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
