@@ -248,7 +248,15 @@ message LoginRsp {
     uint32 uid = 2;
     string name = 3;
     string avatar = 4;
-    string room_number = 5; // 如果用户在房间中，返回房间number，否则返回""
+    //string room_number = 5; // 如果用户在房间中，返回房间number，否则返回""
+}
+
+message GetPlayingRoomReq {
+}
+
+message GetPlayingRoomRsp {
+    ErrorID ret = 1;
+    string room_number = 2; // 如果没有，则为""
 }
 
 message GetProfileReq {
