@@ -18,6 +18,7 @@ func (obj *protocolHandler) init() {
 	obj.dispatcher = map[msg.MessageID]MessageHandlerFunc{
 		msg.MessageID_Login_Req:             obj.handleLogin,
 		msg.MessageID_GetProfile_Req:        obj.handleLogin,
+		msg.MessageID_GetPlayingRoom_Req:    obj.handleRoom,
 		msg.MessageID_CreateRoom_Req:        obj.handleRoom,
 		msg.MessageID_JoinRoom_Req:          obj.handleRoom,
 		msg.MessageID_LeaveRoom_Req:         obj.handleRoom,
@@ -58,7 +59,8 @@ func (obj *protocolHandler) handleRoom(p *ProtocolConnection) {
 		msg.MessageID_JoinRoom_Req,
 		msg.MessageID_LeaveRoom_Req,
 		msg.MessageID_ListRooms_Req,
-		msg.MessageID_CloseRoom_Req:
+		msg.MessageID_CloseRoom_Req,
+		msg.MessageID_GetPlayingRoom_Req:
 		roomManager.Handle(p)
 
 	default:

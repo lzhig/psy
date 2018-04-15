@@ -25,7 +25,6 @@ func (obj *RoomManager) init() error {
 		return err
 	}
 	obj.roomsNumber = make(map[int]*Room)
-	obj.protoChan = make(chan *ProtocolConnection, 128)
 	obj.AddMessageHandler(msg.MessageID_CreateRoom_Req, obj.handleCreateRoomReq)
 	obj.AddMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
 	obj.AddMessageHandler(msg.MessageID_LeaveRoom_Req, obj.handleLeaveRoomReq)
