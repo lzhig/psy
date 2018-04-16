@@ -35,11 +35,11 @@ type roomEvent struct {
 
 // RoomPlayer type
 type RoomPlayer struct {
-	uid    uint32
-	name   string
-	avatar string
-	conn   *userConnection
-	seatID int32 // -1 没有入座
+	uid        uint32
+	name       string
+	avatar     string
+	conn       *userConnection
+	seatID     int32 // -1 没有入座
 	handsNoBet uint32
 }
 
@@ -490,6 +490,7 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 	oldSeatID := player.seatID
 	obj.tablePlayers[seatID] = player
 	player.seatID = int32(seatID)
+	player.handsNoBet = 0
 
 	if seatID == 0 {
 		obj.autoBanker = true
@@ -551,11 +552,16 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 			}},
 	)
 
+	needSwitchToReady := false
+	if player.seatID == 0 && obj.round.state == msg.GameState_Bet {
+		needSwitchToReady = true
+	}
+
 	// 此座位置空
 	obj.tablePlayers[player.seatID] = nil
 	player.seatID = -1
 
-	if player.seatID == 0 && obj.round.state == msg.GameState_Bet {
+	if needSwitchToReady {
 		obj.round.switchGameState(msg.GameState_Ready)
 	}
 }
@@ -643,7 +649,7 @@ func (obj *Room) handleBetReq(p *ProtocolConnection) {
 	defer p.userconn.sendProtocol(rsp)
 
 	// game state
-	if obj.round.state != msg.GameState_Bet {
+	if obj.round.state != msg.GameState_Bet && obj.round.state != msg.GameState_Confirm_Bet {
 		rspProto.Ret = msg.ErrorID_Bet_Not_Bet_State
 		return
 	}
@@ -688,7 +694,7 @@ func (obj *Room) handleBetReq(p *ProtocolConnection) {
 
 	// 如果全部下注，则进入下一阶段
 	if obj.round.isAllBet() {
-		if obj.round.stopStateTimeout() {
+		if obj.round.state == msg.GameState_Bet && obj.round.stopStateTimeout() {
 			obj.round.switchGameState(msg.GameState_Confirm_Bet)
 		}
 	}

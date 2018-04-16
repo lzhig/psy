@@ -68,6 +68,9 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 	if obj.state == state {
 		switch state {
 		case msg.GameState_Bet:
+			obj.switchGameState(msg.GameState_Confirm_Bet)
+
+		case msg.GameState_Confirm_Bet:
 			// 如果没有人下注，则流局
 			if len(obj.betChips) == 0 {
 				if obj.room.closed {
@@ -76,11 +79,35 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 				}
 
 				obj.switchGameState(msg.GameState_Ready)
-			} else {
-				obj.switchGameState(msg.GameState_Confirm_Bet)
+				return
 			}
-		case msg.GameState_Confirm_Bet:
-			obj.switchGameState(msg.GameState_Deal)
+
+			// 确定参与玩家
+			hasBanker := false
+			for _, player := range obj.room.tablePlayers {
+				if player == nil || player.seatID < 0 {
+					continue
+				}
+				seatID := uint32(player.seatID)
+				if seatID == 0 {
+					hasBanker = true
+					obj.players[seatID] = player
+					continue
+				}
+
+				if _, ok := obj.betChips[seatID]; ok {
+					obj.players[seatID] = player
+					player.handsNoBet = 0
+				} else {
+					player.handsNoBet++
+				}
+			}
+			if !hasBanker {
+				obj.switchGameState(msg.GameState_Ready)
+			} else {
+				obj.switchGameState(msg.GameState_Deal)
+			}
+
 		case msg.GameState_Deal:
 			obj.switchGameState(msg.GameState_Combine)
 		case msg.GameState_Combine:
@@ -225,31 +252,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_Confirm_Bet:
-		// 确定参与玩家
-		hasBanker := false
-		for _, player := range obj.room.tablePlayers {
-			if player == nil || player.seatID < 0 {
-				continue
-			}
-			seatID := uint32(player.seatID)
-			if seatID == 0 {
-				hasBanker = true
-				obj.players[seatID] = player
-				continue
-			}
-
-			if _, ok := obj.betChips[seatID]; ok {
-				obj.players[seatID] = player
-				player.handsNoBet = 0
-			} else {
-				player.handsNoBet++
-			}
-		}
-		if !hasBanker {
-			obj.switchGameState(msg.GameState_Ready)
-		} else {
-			obj.room.notifyAll(notify)
-		}
+		obj.room.notifyAll(notify)
 
 	case msg.GameState_Deal:
 		// 对每个参与本轮游戏的玩家发牌
