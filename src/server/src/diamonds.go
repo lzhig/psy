@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"math"
 	"time"
 
@@ -11,56 +10,39 @@ import (
 
 // DiamondsCenter 钻石交易
 type DiamondsCenter struct {
+	base.MessageHandlerImpl
+
 	freeDiamonds FreeDiamonds
-	protoChan    chan *ProtocolConnection
 }
 
 func (obj *DiamondsCenter) init() {
-	obj.protoChan = make(chan *ProtocolConnection, 16)
-	ctx, _ := gApp.CreateCancelContext()
-	gApp.GoRoutine(ctx, obj.loop)
+	obj.MessageHandlerImpl.Init(16)
+
+	obj.AddMessageHandler(msg.MessageID_SendDiamonds_Req, obj.handleSendDiamondsReq)
+	obj.AddMessageHandler(msg.MessageID_DiamondsRecords_Req, obj.handleDiamondsRecordsReq)
+	obj.AddBusyHandler(msg.MessageID_SendDiamonds_Req, obj.handleBusySendDiamondsReq)
+	obj.AddBusyHandler(msg.MessageID_DiamondsRecords_Req, obj.handleBusyDiamondsRecordsReq)
 }
 
-func (obj *DiamondsCenter) loop(ctx context.Context) {
-	defer debug("exit DiamondsCenter goroutine")
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case p := <-obj.protoChan:
-			switch p.p.Msgid {
-			case msg.MessageID_SendDiamonds_Req:
-				obj.handleSendDiamondsReq(p)
-			case msg.MessageID_DiamondsRecords_Req:
-				obj.handleDiamondsRecordsReq(p)
-			default:
-				base.LogError("cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
-			}
-		}
-	}
+func (obj *DiamondsCenter) Handle(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
 }
 
-func (obj *DiamondsCenter) handle(p *ProtocolConnection) {
-	select {
-	case obj.protoChan <- p:
-	default:
-		obj.handleBusy(p)
-	}
-}
-
-func (obj *DiamondsCenter) handleBusy(p *ProtocolConnection) {
+func (obj *DiamondsCenter) handleBusySendDiamondsReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{}
-	switch p.p.Msgid {
-	case msg.MessageID_SendDiamonds_Req:
-		rsp.Msgid = msg.MessageID_SendDiamonds_Rsp
-		rsp.SendDiamondsRsp = &msg.SendDiamondsRsp{Ret: msg.ErrorID_System_Busy}
-	case msg.MessageID_DiamondsRecords_Req:
-		rsp.Msgid = msg.MessageID_DiamondsRecords_Rsp
-		rsp.DiamondsRecordsRsp = &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_System_Busy}
-	default:
-		base.LogError("cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
-	}
+	rsp.Msgid = msg.MessageID_SendDiamonds_Rsp
+	rsp.SendDiamondsRsp = &msg.SendDiamondsRsp{Ret: msg.ErrorID_System_Busy}
+	p.userconn.sendProtocol(rsp)
+}
+
+func (obj *DiamondsCenter) handleBusyDiamondsRecordsReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+	rsp := &msg.Protocol{}
+	rsp.Msgid = msg.MessageID_DiamondsRecords_Rsp
+	rsp.DiamondsRecordsRsp = &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_System_Busy}
+	p.userconn.sendProtocol(rsp)
 }
 
 // Pay function
@@ -68,7 +50,8 @@ func (obj *DiamondsCenter) Pay(from, to uint32, diamonds uint32, keep uint32) er
 	return db.PayDiamonds(from, to, diamonds, keep)
 }
 
-func (obj *DiamondsCenter) handleSendDiamondsReq(p *ProtocolConnection) {
+func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:           msg.MessageID_SendDiamonds_Rsp,
 		SendDiamondsRsp: &msg.SendDiamondsRsp{Ret: msg.ErrorID_Ok},
@@ -104,7 +87,8 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *DiamondsCenter) handleDiamondsRecordsReq(p *ProtocolConnection) {
+func (obj *DiamondsCenter) handleDiamondsRecordsReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_DiamondsRecords_Rsp,
 		DiamondsRecordsRsp: &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_Ok},

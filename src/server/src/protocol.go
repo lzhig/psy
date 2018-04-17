@@ -11,17 +11,19 @@ type IDispatchChan interface {
 }
 
 type protocolHandler struct {
-	dispatcher map[msg.MessageID]MessageHandlerFunc
+	dispatcher map[msg.MessageID]base.MessageHandlerFunc
 }
 
 func (obj *protocolHandler) init() {
-	obj.dispatcher = map[msg.MessageID]MessageHandlerFunc{
+	obj.dispatcher = map[msg.MessageID]base.MessageHandlerFunc{
 		msg.MessageID_Login_Req:             obj.handleLogin,
 		msg.MessageID_GetProfile_Req:        obj.handleLogin,
-		msg.MessageID_GetPlayingRoom_Req:    obj.handleRoom,
-		msg.MessageID_CreateRoom_Req:        obj.handleRoom,
-		msg.MessageID_JoinRoom_Req:          obj.handleRoom,
-		msg.MessageID_LeaveRoom_Req:         obj.handleRoom,
+		msg.MessageID_GetPlayingRoom_Req:    roomManager.Handle,
+		msg.MessageID_CreateRoom_Req:        roomManager.Handle,
+		msg.MessageID_JoinRoom_Req:          roomManager.Handle,
+		msg.MessageID_LeaveRoom_Req:         roomManager.Handle,
+		msg.MessageID_ListRooms_Req:         roomManager.Handle,
+		msg.MessageID_CloseRoom_Req:         roomManager.Handle,
 		msg.MessageID_SitDown_Req:           obj.handleRoom,
 		msg.MessageID_StandUp_Req:           obj.handleRoom,
 		msg.MessageID_AutoBanker_Req:        obj.handleRoom,
@@ -30,10 +32,8 @@ func (obj *protocolHandler) init() {
 		msg.MessageID_Combine_Req:           obj.handleRoom,
 		msg.MessageID_GetScoreboard_Req:     obj.handleRoom,
 		msg.MessageID_GetRoundHistory_Req:   obj.handleRoom,
-		msg.MessageID_ListRooms_Req:         obj.handleRoom,
-		msg.MessageID_CloseRoom_Req:         obj.handleRoom,
-		msg.MessageID_SendDiamonds_Req:      diamondsCenter.handle,
-		msg.MessageID_DiamondsRecords_Req:   diamondsCenter.handle,
+		msg.MessageID_SendDiamonds_Req:      diamondsCenter.Handle,
+		msg.MessageID_DiamondsRecords_Req:   diamondsCenter.Handle,
 		msg.MessageID_CareerWinLoseData_Req: careerCenter.Handle,
 		msg.MessageID_CareerRoomRecords_Req: careerCenter.Handle,
 	}
@@ -49,25 +49,17 @@ func (obj *protocolHandler) handle(p *ProtocolConnection) {
 	}
 }
 
-func (obj *protocolHandler) handleLogin(p *ProtocolConnection) {
+func (obj *protocolHandler) handleLogin(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	loginService.GetDispatchChan() <- p
 }
 
-func (obj *protocolHandler) handleRoom(p *ProtocolConnection) {
-	switch p.p.Msgid {
-	case msg.MessageID_CreateRoom_Req,
-		msg.MessageID_JoinRoom_Req,
-		msg.MessageID_LeaveRoom_Req,
-		msg.MessageID_ListRooms_Req,
-		msg.MessageID_CloseRoom_Req,
-		msg.MessageID_GetPlayingRoom_Req:
-		roomManager.Handle(p)
+func (obj *protocolHandler) handleRoom(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 
-	default:
-		if p.userconn.user.room != nil {
-			p.userconn.user.room.GetProtoChan() <- p
-		} else {
-			base.LogError("Cannot find room. proto:", p)
-		}
+	if p.userconn.user.room != nil {
+		p.userconn.user.room.GetProtoChan() <- p
+	} else {
+		base.LogError("Cannot find room. proto:", p)
 	}
 }

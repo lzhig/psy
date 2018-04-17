@@ -10,7 +10,7 @@ import (
 
 // RoomManager type
 type RoomManager struct {
-	MessageHandlerImpl
+	base.MessageHandlerImpl
 
 	rooms         sync.Map
 	roomsNumber   map[int]*Room
@@ -19,7 +19,7 @@ type RoomManager struct {
 }
 
 func (obj *RoomManager) init() error {
-	obj.MessageHandlerImpl.Init()
+	obj.MessageHandlerImpl.Init(16)
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
 		return err
@@ -33,6 +33,12 @@ func (obj *RoomManager) init() error {
 	obj.AddMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
 	return nil
 }
+
+func (obj *RoomManager) Handle(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
+}
+
 
 func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (*Room, error) {
 	num := roomNumberGenerator.encode(number)

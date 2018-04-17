@@ -4,14 +4,15 @@ import (
 	"time"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 type CareerCenter struct {
-	MessageHandlerImpl
+	base.MessageHandlerImpl
 }
 
 func (obj *CareerCenter) Init() {
-	obj.MessageHandlerImpl.Init()
+	obj.MessageHandlerImpl.Init(16)
 
 	obj.AddMessageHandler(msg.MessageID_CareerWinLoseData_Req, obj.handleCareerWinLoseData)
 	obj.AddMessageHandler(msg.MessageID_CareerRoomRecords_Req, obj.handleCareerRoomRecords)
@@ -19,7 +20,13 @@ func (obj *CareerCenter) Init() {
 	obj.AddBusyHandler(msg.MessageID_CareerRoomRecords_Req, obj.handleBusyCareerRoomRecords)
 }
 
-func (obj *CareerCenter) handleCareerWinLoseData(p *ProtocolConnection) {
+func (obj *CareerCenter) Handle(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
+}
+
+func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerWinLoseData_Rsp,
 		CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_Ok},
@@ -59,7 +66,8 @@ func (obj *CareerCenter) handleCareerWinLoseData(p *ProtocolConnection) {
 	}
 }
 
-func (obj *CareerCenter) handleBusyCareerWinLoseData(p *ProtocolConnection) {
+func (obj *CareerCenter) handleBusyCareerWinLoseData(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerWinLoseData_Rsp,
 		CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_System_Busy},
@@ -67,7 +75,8 @@ func (obj *CareerCenter) handleBusyCareerWinLoseData(p *ProtocolConnection) {
 	p.userconn.sendProtocol(rsp)
 }
 
-func (obj *CareerCenter) handleCareerRoomRecords(p *ProtocolConnection) {
+func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerRoomRecords_Rsp,
 		CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_Ok},
@@ -97,7 +106,8 @@ func (obj *CareerCenter) handleCareerRoomRecords(p *ProtocolConnection) {
 	}
 }
 
-func (obj *CareerCenter) handleBusyCareerRoomRecords(p *ProtocolConnection) {
+func (obj *CareerCenter) handleBusyCareerRoomRecords(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerRoomRecords_Rsp,
 		CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_System_Busy},

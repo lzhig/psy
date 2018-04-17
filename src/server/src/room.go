@@ -231,10 +231,12 @@ func (obj *Room) notifyCloseRoom(c chan bool) {
 
 func (obj *Room) handleEventClose(args []interface{}) {
 	c := args[0].(chan bool)
+
 	if len(obj.players) == 0 {
+		// update db
 		obj.closed = true
-		if obj.round.state == msg.GameState_Ready {
-			obj.round.switchGameState(msg.GameState_CloseRoom)
+		if err := db.CloseRoom(obj.roomID, time.Now().Unix()); err != nil {
+			base.LogError("Fail to close room. error:", err)
 		}
 		c <- true
 	} else {

@@ -133,5 +133,8 @@ func (obj *App) Start() {
 
 // End function
 func (obj *App) End() {
+	diamondsCenter.Close(true)
+	careerCenter.Close(true)
+	roomManager.Close(true)
 	db.close()
 }

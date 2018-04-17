@@ -8,7 +8,8 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
-func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.CreateRoomReq
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_CreateRoom_Rsp,
@@ -92,7 +93,8 @@ func (obj *RoomManager) handleCreateRoomReq(p *ProtocolConnection) {
 	rsp.CreateRoomRsp.RoomNumber = number
 }
 
-func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.JoinRoomReq
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
@@ -137,7 +139,8 @@ func (obj *RoomManager) handleJoinRoomReq(p *ProtocolConnection) {
 	room.GetProtoChan() <- p
 }
 
-func (obj *RoomManager) handleLeaveRoomReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
@@ -153,7 +156,8 @@ func (obj *RoomManager) handleLeaveRoomReq(p *ProtocolConnection) {
 	room.GetProtoChan() <- p
 }
 
-func (obj *RoomManager) handleListRoomsReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_ListRooms_Rsp,
 		ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_Ok},
@@ -182,7 +186,8 @@ func (obj *RoomManager) handleListRoomsReq(p *ProtocolConnection) {
 	rsp.ListRoomsRsp.Rooms = rooms
 }
 
-func (obj *RoomManager) handleCloseRoomReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_CloseRoom_Rsp,
 		CloseRoomRsp: &msg.CloseRoomRsp{Ret: msg.ErrorID_Ok},
@@ -198,7 +203,8 @@ func (obj *RoomManager) handleCloseRoomReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *RoomManager) handleGetPlayingRoomReq(p *ProtocolConnection) {
+func (obj *RoomManager) handleGetPlayingRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:             msg.MessageID_GetPlayingRoom_Rsp,
 		GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_Ok},
