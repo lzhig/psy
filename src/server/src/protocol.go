@@ -5,12 +5,85 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+var busyMessageHandlers = map[msg.MessageID]func(conn *userConnection){
+	msg.MessageID_Login_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Login_Rsp, LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_GetProfile_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetProfile_Rsp, GetProfileRsp: &msg.GetProfileRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_GetPlayingRoom_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetPlayingRoom_Rsp, GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_CreateRoom_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CreateRoom_Rsp, CreateRoomRsp: &msg.CreateRoomRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_JoinRoom_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_JoinRoom_Rsp, JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_LeaveRoom_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_LeaveRoom_Rsp, LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_ListRooms_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_ListRooms_Rsp, ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_CloseRoom_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CloseRoom_Rsp, CloseRoomRsp: &msg.CloseRoomRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_SitDown_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_SitDown_Rsp, SitDownRsp: &msg.SitDownRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_StandUp_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_StandUp_Rsp, StandUpRsp: &msg.StandUpRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_AutoBanker_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_AutoBanker_Rsp, AutoBankerRsp: &msg.AutoBankerRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_StartGame_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_StartGame_Rsp, StartGameRsp: &msg.StartGameRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_Bet_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Bet_Rsp, BetRsp: &msg.BetRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_Combine_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Combine_Rsp, CombineRsp: &msg.CombineRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_GetScoreboard_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetScoreboard_Rsp, GetScoreboardRsp: &msg.GetScoreboardRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_GetRoundHistory_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetRoundHistory_Rsp, GetRoundHistoryRsp: &msg.GetRoundHistoryRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_SendDiamonds_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_SendDiamonds_Rsp, SendDiamondsRsp: &msg.SendDiamondsRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_DiamondsRecords_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_DiamondsRecords_Rsp, DiamondsRecordsRsp: &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_CareerWinLoseData_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CareerWinLoseData_Rsp, CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+	msg.MessageID_CareerRoomRecords_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CareerRoomRecords_Rsp, CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_System_Busy}})
+	},
+}
+
+func (obj *NetworkEngine) handleBusy(msgid msg.MessageID, conn *userConnection) {
+	if handler, ok := busyMessageHandlers[msgid]; ok {
+		handler(conn)
+	} else {
+		base.LogError("No busy handler for msg:", msgid)
+	}
+}
+
 func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 	switch msgid {
 	case msg.MessageID_Login_Req,
 		msg.MessageID_GetProfile_Req:
 
-		loginService.Send(loginEventNetworkPacket, []interface{}{p})
+		if !loginService.Send(loginEventNetworkPacket, []interface{}{p}) {
+			obj.handleBusy(msgid, p.userconn)
+		}
 
 	case msg.MessageID_GetPlayingRoom_Req,
 		msg.MessageID_CreateRoom_Req,
@@ -19,7 +92,9 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 		msg.MessageID_ListRooms_Req,
 		msg.MessageID_CloseRoom_Req:
 
-		roomManager.Send(roomManagerEventNetworkPacket, []interface{}{p})
+		if !roomManager.Send(roomManagerEventNetworkPacket, []interface{}{p}) {
+			obj.handleBusy(msgid, p.userconn)
+		}
 
 	case msg.MessageID_SitDown_Req,
 		msg.MessageID_StandUp_Req,
@@ -31,18 +106,24 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 		msg.MessageID_GetRoundHistory_Req:
 
 		if p.userconn.user.room != nil {
-			p.userconn.user.room.Send(roomEventNetworkPacket, []interface{}{p})
+			if !p.userconn.user.room.Send(roomEventNetworkPacket, []interface{}{p}) {
+				obj.handleBusy(msgid, p.userconn)
+			}
 		} else {
 			base.LogError("Cannot find room. proto:", p)
 		}
 
 	case msg.MessageID_SendDiamonds_Req,
 		msg.MessageID_DiamondsRecords_Req:
-		diamondsCenter.Send(diamondsEventNetworkPacket, []interface{}{p})
+		if !diamondsCenter.Send(diamondsEventNetworkPacket, []interface{}{p}) {
+			obj.handleBusy(msgid, p.userconn)
+		}
 
 	case msg.MessageID_CareerWinLoseData_Req,
 		msg.MessageID_CareerRoomRecords_Req:
-		careerCenter.Send(careerEventNetworkPacket, []interface{}{p})
+		if !careerCenter.Send(careerEventNetworkPacket, []interface{}{p}) {
+			obj.handleBusy(msgid, p.userconn)
+		}
 
 	default:
 		base.LogError("Cannot find dispatcher for msgid:", msg.MessageID_name[int32(p.p.Msgid)])

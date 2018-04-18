@@ -25,10 +25,7 @@ type LoginService struct {
 	base.EventSystem
 
 	networkPacketHandler base.MessageHandlerImpl
-
-	//protoChan chan *ProtocolConnection
-
-	fbChecker FacebookUserCheck
+	fbChecker            FacebookUserCheck
 
 	//limitation base.Limitation
 }
@@ -44,9 +41,6 @@ func (obj *LoginService) init() {
 	obj.fbChecker.Init()
 
 	//obj.limitation.Init(16)
-	//obj.protoChan = make(chan *ProtocolConnection, 16)
-	// ctx, _ := gApp.CreateCancelContext()
-	// gApp.GoRoutine(ctx, obj.loop)
 }
 
 func (obj *LoginService) handleEventNetworkPacket(args []interface{}) {
@@ -62,34 +56,6 @@ func (obj *LoginService) handleEventNetworkPacket(args []interface{}) {
 	}
 }
 
-// func (obj *LoginService) loop(ctx context.Context) {
-// 	defer debug("exit LoginService goroutine")
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return
-
-// 		case p := <-obj.protoChan:
-// 			go obj.handle(p.userconn, p.p)
-// 		}
-// 	}
-// }
-
-// func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
-// 	defer base.LogPanic()
-// 	base.LogInfo(p)
-// 	obj.limitation.Acquire()
-// 	defer obj.limitation.Release()
-
-// 	switch p.Msgid {
-// 	case msg.MessageID_Login_Req:
-// 		obj.handleLogin(userconn, p)
-// 	case msg.MessageID_GetProfile_Req:
-// 		obj.handleGetProfile(userconn, p)
-
-// 	}
-// }
-
 func (obj *LoginService) handleLogin(arg interface{}) {
 	pc := arg.(*ProtocolConnection)
 	p := pc.p
@@ -99,7 +65,6 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 		Msgid:    msg.MessageID_Login_Rsp,
 		LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_Invalid_Params},
 	}
-	//defer userconn.sendProtocol(rsp)
 
 	errHandle := func(id msg.ErrorID) {
 		rsp.LoginRsp.Ret = id

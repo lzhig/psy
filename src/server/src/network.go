@@ -23,12 +23,9 @@ type NetworkEngine struct {
 	server *rapidnet.TCPServer
 
 	eventChan <-chan *rapidnet.Event
-
-	//protoHandler protocolHandler
 }
 
 func (obj *NetworkEngine) init() {
-	//obj.protoHandler.init()
 }
 
 // Start function
