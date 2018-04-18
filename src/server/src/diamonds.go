@@ -8,41 +8,38 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+const (
+	diamondsEventNetworkPacket base.EventID = iota
+)
+
 // DiamondsCenter 钻石交易
 type DiamondsCenter struct {
-	base.MessageHandlerImpl
+	base.EventSystem
 
-	freeDiamonds FreeDiamonds
+	networkPacketHandler base.MessageHandlerImpl
+	freeDiamonds         FreeDiamonds
 }
 
 func (obj *DiamondsCenter) init() {
-	obj.MessageHandlerImpl.Init(16)
+	obj.EventSystem.Init(16)
+	obj.SetEventHandler(diamondsEventNetworkPacket, obj.handleEventNetworkPacket)
 
-	obj.AddMessageHandler(msg.MessageID_SendDiamonds_Req, obj.handleSendDiamondsReq)
-	obj.AddMessageHandler(msg.MessageID_DiamondsRecords_Req, obj.handleDiamondsRecordsReq)
-	obj.AddBusyHandler(msg.MessageID_SendDiamonds_Req, obj.handleBusySendDiamondsReq)
-	obj.AddBusyHandler(msg.MessageID_DiamondsRecords_Req, obj.handleBusyDiamondsRecordsReq)
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_SendDiamonds_Req, obj.handleSendDiamondsReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_DiamondsRecords_Req, obj.handleDiamondsRecordsReq)
 }
 
-func (obj *DiamondsCenter) Handle(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
-}
+func (obj *DiamondsCenter) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
 
-func (obj *DiamondsCenter) handleBusySendDiamondsReq(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	rsp := &msg.Protocol{}
-	rsp.Msgid = msg.MessageID_SendDiamonds_Rsp
-	rsp.SendDiamondsRsp = &msg.SendDiamondsRsp{Ret: msg.ErrorID_System_Busy}
-	p.userconn.sendProtocol(rsp)
-}
-
-func (obj *DiamondsCenter) handleBusyDiamondsRecordsReq(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	rsp := &msg.Protocol{}
-	rsp.Msgid = msg.MessageID_DiamondsRecords_Rsp
-	rsp.DiamondsRecordsRsp = &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_System_Busy}
-	p.userconn.sendProtocol(rsp)
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
+	}
 }
 
 // Pay function

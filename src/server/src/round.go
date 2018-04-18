@@ -334,10 +334,11 @@ func (obj *Round) switchGameState(state msg.GameState) {
 	if notify.GameStateNotify.Countdown > 0 {
 		obj.stateTimeout = time.AfterFunc(time.Duration(notify.GameStateNotify.Countdown)*time.Millisecond,
 			func() {
-				obj.room.eventChan <- &roomEvent{
-					event: roomEventGameStateTimeout,
-					args:  []interface{}{state},
-				}
+				obj.room.Send(roomEventGameStateTimeout, []interface{}{state})
+				// obj.room.eventChan <- &roomEvent{
+				// 	event: roomEventGameStateTimeout,
+				// 	args:  []interface{}{state},
+				// }
 			})
 	}
 }

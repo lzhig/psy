@@ -160,7 +160,8 @@ func (obj *UserManager) setUserConnection(uid uint32, conn *userConnection) {
 
 			if user.room != nil {
 				// 向房间发送此用户断线消息
-				user.room.notifyUserDisconnect(uid)
+				//user.room.notifyUserDisconnect(uid)
+				user.room.Send(roomEventUserDisconnect, []interface{}{uid})
 			}
 
 			oldConn := user.conn
@@ -184,7 +185,8 @@ func (obj *UserManager) userDisconnect(uid uint32, conn *userConnection) {
 		if user.conn == conn {
 			if user.room != nil {
 				// 向房间发送此用户断线消息
-				user.room.notifyUserDisconnect(uid)
+				//user.room.notifyUserDisconnect(uid)
+				user.room.Send(roomEventUserDisconnect, []interface{}{uid})
 			}
 			user.conn = nil
 		}

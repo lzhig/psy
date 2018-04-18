@@ -24,11 +24,11 @@ type NetworkEngine struct {
 
 	eventChan <-chan *rapidnet.Event
 
-	protoHandler protocolHandler
+	//protoHandler protocolHandler
 }
 
 func (obj *NetworkEngine) init() {
-	obj.protoHandler.init()
+	//obj.protoHandler.init()
 }
 
 // Start function
@@ -105,7 +105,7 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 				return
 			}
 
-			obj.protoHandler.handle(&ProtocolConnection{p: p, userconn: userconn})
+			obj.handle(p.Msgid, &ProtocolConnection{p: p, userconn: userconn})
 		}
 	}
 }

@@ -136,7 +136,8 @@ func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 			obj.roomCountdown.Add(room.roomID, createTime)
 		}
 	}
-	room.GetProtoChan() <- p
+	//room.GetProtoChan() <- p
+	room.Send(roomEventNetworkPacket, []interface{}{p})
 }
 
 func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
@@ -153,7 +154,8 @@ func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 		return
 	}
 
-	room.GetProtoChan() <- p
+	room.Send(roomEventNetworkPacket, []interface{}{p})
+	// room.GetProtoChan() <- p
 }
 
 func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
@@ -178,7 +180,8 @@ func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 		if ok {
 			room := v.(*Room)
 			c := make(chan []*msg.ListRoomPlayerInfo)
-			room.notifyGetSeatPlayers(c)
+			//room.notifyGetSeatPlayers(c)
+			room.Send(roomEventGetSeatPlayers, []interface{}{c})
 			r.Players = <-c
 		}
 	}

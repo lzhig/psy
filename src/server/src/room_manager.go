@@ -8,9 +8,15 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+const (
+	roomManagerEventNetworkPacket base.EventID = iota
+)
+
 // RoomManager type
 type RoomManager struct {
-	base.MessageHandlerImpl
+	base.EventSystem
+
+	networkPacketHandler base.MessageHandlerImpl
 
 	rooms         sync.Map
 	roomsNumber   map[int]*Room
@@ -19,26 +25,37 @@ type RoomManager struct {
 }
 
 func (obj *RoomManager) init() error {
-	obj.MessageHandlerImpl.Init(16)
+	obj.EventSystem.Init(16)
+	obj.SetEventHandler(roomManagerEventNetworkPacket, obj.handleEventNetworkPacket)
+
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
 		return err
 	}
 	obj.roomsNumber = make(map[int]*Room)
-	obj.AddMessageHandler(msg.MessageID_CreateRoom_Req, obj.handleCreateRoomReq)
-	obj.AddMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
-	obj.AddMessageHandler(msg.MessageID_LeaveRoom_Req, obj.handleLeaveRoomReq)
-	obj.AddMessageHandler(msg.MessageID_ListRooms_Req, obj.handleListRoomsReq)
-	obj.AddMessageHandler(msg.MessageID_CloseRoom_Req, obj.handleCloseRoomReq)
-	obj.AddMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
+
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CreateRoom_Req, obj.handleCreateRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_LeaveRoom_Req, obj.handleLeaveRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_ListRooms_Req, obj.handleListRoomsReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CloseRoom_Req, obj.handleCloseRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
 	return nil
 }
 
-func (obj *RoomManager) Handle(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
-}
+func (obj *RoomManager) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
 
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
+	}
+}
 
 func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (*Room, error) {
 	num := roomNumberGenerator.encode(number)
@@ -83,7 +100,8 @@ func (obj *RoomManager) CloseRoom(roomid uint32) bool {
 	if ok {
 		room := r.(*Room)
 		c := make(chan bool)
-		room.notifyCloseRoom(c)
+		//room.notifyCloseRoom(c)
+		room.Send(roomEventClose, []interface{}{c})
 		closed := <-c
 		return closed
 	}

@@ -7,22 +7,36 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
+const (
+	careerEventNetworkPacket base.EventID = iota
+)
+
 type CareerCenter struct {
-	base.MessageHandlerImpl
+	base.EventSystem
+
+	networkPacketHandler base.MessageHandlerImpl
 }
 
 func (obj *CareerCenter) Init() {
-	obj.MessageHandlerImpl.Init(16)
+	obj.EventSystem.Init(16)
+	obj.SetEventHandler(careerEventNetworkPacket, obj.handleEventNetworkPacket)
 
-	obj.AddMessageHandler(msg.MessageID_CareerWinLoseData_Req, obj.handleCareerWinLoseData)
-	obj.AddMessageHandler(msg.MessageID_CareerRoomRecords_Req, obj.handleCareerRoomRecords)
-	obj.AddBusyHandler(msg.MessageID_CareerWinLoseData_Req, obj.handleBusyCareerWinLoseData)
-	obj.AddBusyHandler(msg.MessageID_CareerRoomRecords_Req, obj.handleBusyCareerRoomRecords)
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CareerWinLoseData_Req, obj.handleCareerWinLoseData)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CareerRoomRecords_Req, obj.handleCareerRoomRecords)
 }
 
-func (obj *CareerCenter) Handle(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	obj.MessageHandlerImpl.Handle(p.p.Msgid, p)
+func (obj *CareerCenter) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
+
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
+	}
 }
 
 func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {

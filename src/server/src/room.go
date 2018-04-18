@@ -9,8 +9,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -21,17 +19,20 @@ import (
 )
 
 const (
-	roomEventUserDisconnect int = iota
-	roomEventUserReconnect
+	roomEventNetworkPacket base.EventID = iota
+	roomEventUserDisconnect
+	//roomEventUserReconnect
 	roomEventGameStateTimeout
 	roomEventClose
 	roomEventGetSeatPlayers
 )
 
-type roomEvent struct {
-	event int
-	args  []interface{}
-}
+const ()
+
+// type roomEvent struct {
+// 	event int
+// 	args  []interface{}
+// }
 
 // RoomPlayer type
 type RoomPlayer struct {
@@ -51,6 +52,10 @@ func (obj *RoomPlayer) sendProtocol(p *msg.Protocol) {
 
 // Room type
 type Room struct {
+	base.EventSystem
+
+	networkPacketHandler base.MessageHandlerImpl
+
 	name         string
 	roomID       uint32
 	number       int
@@ -67,8 +72,8 @@ type Room struct {
 
 	autoBanker bool
 
-	eventChan     chan *roomEvent
-	eventHandlers map[int]func([]interface{})
+	//eventChan     chan *roomEvent
+	//eventHandlers map[int]func([]interface{})
 
 	protoChan     chan *ProtocolConnection
 	protoHandlers map[msg.MessageID]func(*ProtocolConnection)
@@ -81,28 +86,25 @@ type Room struct {
 }
 
 func (obj *Room) init(bLoadScoreboard bool) {
-	obj.eventChan = make(chan *roomEvent, 16)
-	obj.eventHandlers = map[int]func([]interface{}){
-		roomEventUserDisconnect:   obj.handleEventUserDisconnect,
-		roomEventUserReconnect:    obj.handleEventUserReconnect,
-		roomEventGameStateTimeout: obj.handleEventGameStateTimeout,
-		roomEventClose:            obj.handleEventClose,
-		roomEventGetSeatPlayers:   obj.handleEventGetSeatPlayers,
-	}
+	obj.EventSystem.Init(16)
+	obj.SetEventHandler(roomEventNetworkPacket, obj.handleEventNetworkPacket)
+	obj.SetEventHandler(roomEventUserDisconnect, obj.handleEventUserDisconnect)
+	//obj.SetEventHandler(roomEventUserReconnect, obj.handleEventUserReconnect)
+	obj.SetEventHandler(roomEventGameStateTimeout, obj.handleEventGameStateTimeout)
+	obj.SetEventHandler(roomEventClose, obj.handleEventClose)
+	obj.SetEventHandler(roomEventGetSeatPlayers, obj.handleEventGetSeatPlayers)
 
-	obj.protoChan = make(chan *ProtocolConnection, 128)
-	obj.protoHandlers = map[msg.MessageID]func(*ProtocolConnection){
-		msg.MessageID_JoinRoom_Req:        obj.handleJoinRoomReq,
-		msg.MessageID_LeaveRoom_Req:       obj.handleLeaveRoomReq,
-		msg.MessageID_SitDown_Req:         obj.handleSitDownReq,
-		msg.MessageID_StandUp_Req:         obj.handleStandUpReq,
-		msg.MessageID_AutoBanker_Req:      obj.handleAutoBankerReq,
-		msg.MessageID_StartGame_Req:       obj.handleStartGameReq,
-		msg.MessageID_Bet_Req:             obj.handleBetReq,
-		msg.MessageID_Combine_Req:         obj.handleCombineReq,
-		msg.MessageID_GetScoreboard_Req:   obj.handleGetScoreboardReq,
-		msg.MessageID_GetRoundHistory_Req: obj.handleGetRoundHistoryReq,
-	}
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_LeaveRoom_Req, obj.handleLeaveRoomReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_SitDown_Req, obj.handleSitDownReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_StandUp_Req, obj.handleStandUpReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_AutoBanker_Req, obj.handleAutoBankerReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_StartGame_Req, obj.handleStartGameReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Bet_Req, obj.handleBetReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Combine_Req, obj.handleCombineReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetScoreboard_Req, obj.handleGetScoreboardReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetRoundHistory_Req, obj.handleGetRoundHistoryReq)
 
 	obj.players = make(map[uint32]*RoomPlayer)
 	obj.tablePlayers = make([]*RoomPlayer, gApp.config.Room.MaxTablePlayers, gApp.config.Room.MaxTablePlayers)
@@ -117,8 +119,21 @@ func (obj *Room) init(bLoadScoreboard bool) {
 		}
 	}
 
-	ctx, _ := gApp.CreateCancelContext()
-	gApp.GoRoutine(ctx, obj.loop)
+	// ctx, _ := gApp.CreateCancelContext()
+	// gApp.GoRoutine(ctx, obj.loop)
+}
+
+func (obj *Room) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
+
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
+	}
 }
 
 func (obj *Room) nextRound() {
@@ -126,43 +141,43 @@ func (obj *Room) nextRound() {
 }
 
 // GetProtoChan function
-func (obj *Room) GetProtoChan() chan<- *ProtocolConnection {
-	return obj.protoChan
-}
+// func (obj *Room) GetProtoChan() chan<- *ProtocolConnection {
+// 	return obj.protoChan
+// }
 
-func (obj *Room) loop(ctx context.Context) {
-	defer debug(fmt.Sprintf("exit Room %d goroutine", obj.roomID))
-	for {
-		select {
-		case <-ctx.Done():
-			return
+// func (obj *Room) loop(ctx context.Context) {
+// 	defer debug(fmt.Sprintf("exit Room %d goroutine", obj.roomID))
+// 	for {
+// 		select {
+// 		case <-ctx.Done():
+// 			return
 
-		case p := <-obj.protoChan:
-			if handler, ok := obj.protoHandlers[p.p.Msgid]; ok {
-				handler(p)
-			} else {
-				base.LogError("[Room][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
-				p.userconn.Disconnect()
-			}
+// 		case p := <-obj.protoChan:
+// 			if handler, ok := obj.protoHandlers[p.p.Msgid]; ok {
+// 				handler(p)
+// 			} else {
+// 				base.LogError("[Room][loop] cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+// 				p.userconn.Disconnect()
+// 			}
 
-		case event := <-obj.eventChan:
-			if handler, ok := obj.eventHandlers[event.event]; ok {
-				handler(event.args)
-			} else {
-				base.LogError("[Room][loop] cannot find a handler for event:", event.event)
-				gApp.Exit()
-			}
-		}
-	}
-}
+// 		case event := <-obj.eventChan:
+// 			if handler, ok := obj.eventHandlers[event.event]; ok {
+// 				handler(event.args)
+// 			} else {
+// 				base.LogError("[Room][loop] cannot find a handler for event:", event.event)
+// 				gApp.Exit()
+// 			}
+// 		}
+// 	}
+// }
 
-func (obj *Room) getEventChan() chan<- *roomEvent {
-	return obj.eventChan
-}
+// func (obj *Room) getEventChan() chan<- *roomEvent {
+// 	return obj.eventChan
+// }
 
-func (obj *Room) notifyUserDisconnect(uid uint32) {
-	obj.eventChan <- &roomEvent{event: roomEventUserDisconnect, args: []interface{}{uid}}
-}
+// func (obj *Room) notifyUserDisconnect(uid uint32) {
+// 	obj.eventChan <- &roomEvent{event: roomEventUserDisconnect, args: []interface{}{uid}}
+// }
 
 func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	if args == nil || len(args) == 0 {
@@ -203,32 +218,33 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	}
 }
 
-func (obj *Room) notifyUserReconnect(uid uint32, conn *userConnection) {
-	obj.eventChan <- &roomEvent{event: roomEventUserReconnect, args: []interface{}{uid, conn}}
-}
+// func (obj *Room) notifyUserReconnect(uid uint32, conn *userConnection) {
+// 	obj.eventChan <- &roomEvent{event: roomEventUserReconnect, args: []interface{}{uid, conn}}
+// }
 
-func (obj *Room) handleEventUserReconnect(args []interface{}) {
-	uid := args[0].(uint32)
-	conn := args[1].(*userConnection)
+// func (obj *Room) handleEventUserReconnect(args []interface{}) {
+// 	uid := args[0].(uint32)
+// 	conn := args[1].(*userConnection)
 
-	obj.notifyOthers(conn,
-		&msg.Protocol{
-			Msgid: msg.MessageID_Reconnect_Notify,
-			ReconnectNotify: &msg.ReconnectNotify{
-				Uid: uid,
-			}})
-	obj.players[uid].conn = conn
-}
+// 	obj.notifyOthers(conn,
+// 		&msg.Protocol{
+// 			Msgid: msg.MessageID_Reconnect_Notify,
+// 			ReconnectNotify: &msg.ReconnectNotify{
+// 				Uid: uid,
+// 			}})
+// 	obj.players[uid].conn = conn
+// }
 
 func (obj *Room) handleEventGameStateTimeout(args []interface{}) {
 	state := args[0].(msg.GameState)
 	obj.round.HandleTimeout(state)
 }
 
-func (obj *Room) notifyCloseRoom(c chan bool) {
-	obj.eventChan <- &roomEvent{event: roomEventClose, args: []interface{}{c}}
-}
+// func (obj *Room) notifyCloseRoom(c chan bool) {
+// 	obj.eventChan <- &roomEvent{event: roomEventClose, args: []interface{}{c}}
+// }
 
+// 如果有人在房间，不能关闭
 func (obj *Room) handleEventClose(args []interface{}) {
 	c := args[0].(chan bool)
 
@@ -244,9 +260,9 @@ func (obj *Room) handleEventClose(args []interface{}) {
 	}
 }
 
-func (obj *Room) notifyGetSeatPlayers(c chan []*msg.ListRoomPlayerInfo) {
-	obj.eventChan <- &roomEvent{event: roomEventGetSeatPlayers, args: []interface{}{c}}
-}
+// func (obj *Room) notifyGetSeatPlayers(c chan []*msg.ListRoomPlayerInfo) {
+// 	obj.eventChan <- &roomEvent{event: roomEventGetSeatPlayers, args: []interface{}{c}}
+// }
 
 func (obj *Room) handleEventGetSeatPlayers(args []interface{}) {
 	c := args[0].(chan []*msg.ListRoomPlayerInfo)
@@ -279,7 +295,8 @@ func (obj *Room) notifyAll(p *msg.Protocol) {
 	}
 }
 
-func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
+func (obj *Room) handleJoinRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
@@ -397,7 +414,8 @@ func (obj *Room) handleJoinRoomReq(p *ProtocolConnection) {
 	p.userconn.user.room = obj
 }
 
-func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
+func (obj *Room) handleLeaveRoomReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
@@ -438,7 +456,8 @@ func (obj *Room) handleLeaveRoomReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
+func (obj *Room) handleSitDownReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_SitDown_Rsp,
 		SitDownRsp: &msg.SitDownRsp{Ret: msg.ErrorID_Ok},
@@ -513,7 +532,8 @@ func (obj *Room) handleSitDownReq(p *ProtocolConnection) {
 	)
 }
 
-func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
+func (obj *Room) handleStandUpReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_StandUp_Rsp,
 		StandUpRsp: &msg.StandUpRsp{Ret: msg.ErrorID_Ok},
@@ -568,7 +588,8 @@ func (obj *Room) handleStandUpReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *Room) handleAutoBankerReq(p *ProtocolConnection) {
+func (obj *Room) handleAutoBankerReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_AutoBanker_Rsp,
 		AutoBankerRsp: &msg.AutoBankerRsp{Ret: msg.ErrorID_Ok},
@@ -591,7 +612,8 @@ func (obj *Room) handleAutoBankerReq(p *ProtocolConnection) {
 	obj.autoBanker = p.p.AutoBankerReq.AutoBanker
 }
 
-func (obj *Room) handleStartGameReq(p *ProtocolConnection) {
+func (obj *Room) handleStartGameReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	handle := func() bool {
 		rsp := &msg.Protocol{
 			Msgid:        msg.MessageID_StartGame_Rsp,
@@ -641,7 +663,8 @@ func (obj *Room) handleStartGameReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *Room) handleBetReq(p *ProtocolConnection) {
+func (obj *Room) handleBetReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.BetReq
 	rsp := &msg.Protocol{
 		Msgid:  msg.MessageID_Bet_Rsp,
@@ -702,7 +725,8 @@ func (obj *Room) handleBetReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *Room) handleCombineReq(p *ProtocolConnection) {
+func (obj *Room) handleCombineReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.CombineReq
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_Combine_Rsp,
@@ -835,7 +859,8 @@ func (obj *Room) handleCombineReq(p *ProtocolConnection) {
 	}
 }
 
-func (obj *Room) handleGetScoreboardReq(p *ProtocolConnection) {
+func (obj *Room) handleGetScoreboardReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.GetScoreboardReq
 	rsp := &msg.Protocol{
 		Msgid:            msg.MessageID_GetScoreboard_Rsp,
@@ -877,7 +902,8 @@ func (obj *Room) updateScoreboard(seatID uint32, score int32) {
 	obj.scoreboard.Update(player.uid, player.name, player.avatar, score)
 }
 
-func (obj *Room) handleGetRoundHistoryReq(p *ProtocolConnection) {
+func (obj *Room) handleGetRoundHistoryReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
 	req := p.p.GetRoundHistoryReq
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_GetRoundHistory_Rsp,

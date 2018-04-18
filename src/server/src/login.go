@@ -8,7 +8,6 @@
 package main
 
 import (
-	"context"
 	"time"
 
 	"./msg"
@@ -17,58 +16,84 @@ import (
 	"github.com/lzhig/rapidgo/rapidnet"
 )
 
+const (
+	loginEventNetworkPacket base.EventID = iota
+)
+
 // LoginService 登录服务
 type LoginService struct {
-	protoChan chan *ProtocolConnection
+	base.EventSystem
+
+	networkPacketHandler base.MessageHandlerImpl
+
+	//protoChan chan *ProtocolConnection
 
 	fbChecker FacebookUserCheck
 
-	limitation base.Limitation
+	//limitation base.Limitation
 }
 
 func (obj *LoginService) init() {
+	obj.EventSystem.Init(16)
+	obj.SetEventHandler(loginEventNetworkPacket, obj.handleEventNetworkPacket)
+
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Login_Req, obj.handleLogin)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetProfile_Req, obj.handleGetProfile)
+
 	obj.fbChecker.Init()
 
-	obj.limitation.Init(16)
-	obj.protoChan = make(chan *ProtocolConnection, 16)
-	ctx, _ := gApp.CreateCancelContext()
-	gApp.GoRoutine(ctx, obj.loop)
+	//obj.limitation.Init(16)
+	//obj.protoChan = make(chan *ProtocolConnection, 16)
+	// ctx, _ := gApp.CreateCancelContext()
+	// gApp.GoRoutine(ctx, obj.loop)
 }
 
-// GetDispatchChan function
-func (obj *LoginService) GetDispatchChan() chan<- *ProtocolConnection {
-	return obj.protoChan
-}
+func (obj *LoginService) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
 
-func (obj *LoginService) loop(ctx context.Context) {
-	defer debug("exit LoginService goroutine")
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case p := <-obj.protoChan:
-			go obj.handle(p.userconn, p.p)
-		}
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
 	}
 }
 
-func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
-	defer base.LogPanic()
-	base.LogInfo(p)
-	obj.limitation.Acquire()
-	defer obj.limitation.Release()
+// func (obj *LoginService) loop(ctx context.Context) {
+// 	defer debug("exit LoginService goroutine")
+// 	for {
+// 		select {
+// 		case <-ctx.Done():
+// 			return
 
-	switch p.Msgid {
-	case msg.MessageID_Login_Req:
-		obj.handleLogin(userconn, p)
-	case msg.MessageID_GetProfile_Req:
-		obj.handleGetProfile(userconn, p)
+// 		case p := <-obj.protoChan:
+// 			go obj.handle(p.userconn, p.p)
+// 		}
+// 	}
+// }
 
-	}
-}
+// func (obj *LoginService) handle(userconn *userConnection, p *msg.Protocol) {
+// 	defer base.LogPanic()
+// 	base.LogInfo(p)
+// 	obj.limitation.Acquire()
+// 	defer obj.limitation.Release()
 
-func (obj *LoginService) handleLogin(userconn *userConnection, p *msg.Protocol) {
+// 	switch p.Msgid {
+// 	case msg.MessageID_Login_Req:
+// 		obj.handleLogin(userconn, p)
+// 	case msg.MessageID_GetProfile_Req:
+// 		obj.handleGetProfile(userconn, p)
+
+// 	}
+// }
+
+func (obj *LoginService) handleLogin(arg interface{}) {
+	pc := arg.(*ProtocolConnection)
+	p := pc.p
+	userconn := pc.userconn
 
 	rsp := &msg.Protocol{
 		Msgid:    msg.MessageID_Login_Rsp,
@@ -178,7 +203,9 @@ func (obj *LoginService) handleLogin(userconn *userConnection, p *msg.Protocol) 
 	}
 }
 
-func (obj *LoginService) handleGetProfile(userconn *userConnection, p *msg.Protocol) {
+func (obj *LoginService) handleGetProfile(arg interface{}) {
+	pc := arg.(*ProtocolConnection)
+	userconn := pc.userconn
 
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_GetProfile_Rsp,
