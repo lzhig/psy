@@ -582,6 +582,7 @@ message GameStateNotify {
     repeated uint32 deal_cards = 3; // 发牌阶段
     repeated uint32 deal_seats = 4; // 发牌的座位
     repeated SeatResult result = 5; // 结算结果
+    uint32 played_hands = 6; // ready和bet有效
 }
 
 // game

@@ -52,6 +52,10 @@ func (obj *protocolHandler) handle(p *msg.Protocol) {
 }
 
 func (obj *protocolHandler) handleLogin(p *msg.Protocol) {
+	if p.LoginRsp.Ret != msg.ErrorID_Ok {
+		obj.c.sendLoginReq()
+		return
+	}
 	//obj.c.sendCreateRoom()
 	//obj.c.sendJoinRoom()
 }

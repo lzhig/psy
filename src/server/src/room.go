@@ -295,6 +295,34 @@ func (obj *Room) notifyAll(p *msg.Protocol) {
 	}
 }
 
+func (obj *Room) playerJoin(user *User) {
+	obj.players[user.uid] = &RoomPlayer{
+		uid:    user.uid,
+		name:   user.name,
+		avatar: user.avatar,
+		conn:   user.conn,
+		seatID: -1,
+	}
+	user.room = obj
+}
+
+func (obj *Room) playerLeave(user *User) {
+	player, ok := obj.players[user.uid]
+	if !ok {
+		return
+	}
+
+	if player.seatID >= 0 {
+		obj.tablePlayers[player.seatID] = nil
+	}
+	delete(obj.players, player.uid)
+	user.room = nil
+}
+
+func (obj *Room) playerSitDown(user *User) {
+
+}
+
 func (obj *Room) handleJoinRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 	rsp := &msg.Protocol{
@@ -574,8 +602,20 @@ func (obj *Room) handleStandUpReq(arg interface{}) {
 			}},
 	)
 
+	if player.seatID > 0 {
+		obj.round.unbet(uint32(player.seatID))
+	}
+
 	needSwitchToReady := false
-	if player.seatID == 0 && obj.round.state == msg.GameState_Bet {
+	num := 0
+	for _, player := range obj.tablePlayers {
+		if player == nil || player.seatID == 0 {
+			continue
+		}
+		num++
+	}
+	base.LogInfo("num:", num, ", state:", obj.round.state)
+	if (player.seatID == 0 || num <= 1) && obj.round.state == msg.GameState_Bet {
 		needSwitchToReady = true
 	}
 
@@ -951,6 +991,7 @@ func (obj *Room) kickPlayer(uid uint32) {
 	}
 
 	if player.seatID >= 0 {
+		obj.round.unbet(uint32(player.seatID))
 		obj.tablePlayers[player.seatID] = nil
 	}
 

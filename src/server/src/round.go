@@ -179,9 +179,6 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					// 如果是自动连庄
 					obj.Begin()
 
-					// 局数+1
-					obj.room.nextRound()
-
 					// 检查座位上有庄家并且有其他玩家
 					hasBanker := false
 					hasOthers := false
@@ -200,8 +197,12 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					}
 
 					if hasBanker && hasOthers {
+						// 局数+1
+						obj.room.nextRound()
 						obj.switchGameState(msg.GameState_Bet)
 					} else {
+						// 局数+1
+						obj.room.nextRound()
 						obj.switchGameState(msg.GameState_Ready)
 					}
 				} else {
@@ -219,6 +220,8 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 								Reason: msg.StandUpReason_BankerNotAutoBanker,
 							}},
 					)
+					// 局数+1
+					obj.room.nextRound()
 					obj.switchGameState(msg.GameState_Ready)
 				}
 			} else {
@@ -245,10 +248,15 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 		// 流局不再增加局数
 		//obj.room.nextRound()
+		notify.GameStateNotify.PlayedHands = obj.room.playedHands
 
 		obj.room.notifyAll(notify)
 
-	case msg.GameState_Bet, msg.GameState_Combine:
+	case msg.GameState_Bet:
+		notify.GameStateNotify.PlayedHands = obj.room.playedHands
+		obj.room.notifyAll(notify)
+
+	case msg.GameState_Combine:
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_Confirm_Bet:
@@ -306,29 +314,30 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			}
 		}()
 	case msg.GameState_Result:
-		// 先关闭房间
+		obj.room.notifyAll(notify)
+
 		if obj.room.playedHands >= obj.room.hands-1 {
+			// 先关闭房间
 			obj.room.closed = true
+
 			// update db
 			if err := db.CloseRoom(obj.room.roomID, time.Now().Unix()); err != nil {
-				base.LogError("Fail to close room. error:", err)
+				base.LogError("Failed to close room. error:", err)
+			}
+
+			// kick all players
+			for _, player := range obj.room.players {
+				//delete(obj.room.players, player.uid)
+				if player.seatID >= 0 {
+					obj.room.tablePlayers[player.seatID] = nil
+				}
+				userManager.leaveRoom(player.uid, obj.room)
+				player.conn.user.room = nil
 			}
 		}
-		obj.room.notifyAll(notify)
 
 	case msg.GameState_CloseRoom:
 		obj.room.closed = true
-		obj.room.notifyAll(notify)
-
-		// kick all players
-		for _, player := range obj.room.players {
-			//delete(obj.room.players, player.uid)
-			if player.seatID >= 0 {
-				obj.room.tablePlayers[player.seatID] = nil
-			}
-			userManager.leaveRoom(player.uid, obj.room)
-			player.conn.user.room = nil
-		}
 	}
 
 	if notify.GameStateNotify.Countdown > 0 {
