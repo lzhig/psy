@@ -523,6 +523,7 @@ message CombineReq {
 
 message CombineRsp {
     ErrorID ret = 1;
+    repeated CardGroup card_groups = 2; // 牌组
 }
 
 message CombineNotify {
@@ -572,9 +573,10 @@ enum GameState {
     Confirm_Bet = 2; // 确认下注
     Deal = 3; // 发牌
     Combine = 4; // 组牌
-    Show = 5; // show 牌
-    Result = 6; // 结算
-    CloseRoom = 7; // 关闭房间
+    Confirm_Combine = 5; // 组牌确认
+    Show = 6; // show 牌
+    Result = 7; // 结算
+    CloseRoom = 8; // 关闭房间
 }
 
 message GameStateNotify {
