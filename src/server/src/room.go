@@ -25,6 +25,8 @@ const (
 	roomEventGameStateTimeout
 	roomEventClose
 	roomEventGetSeatPlayers
+	roomEventRelease
+	roomEventReleaseTimer
 )
 
 const ()
@@ -69,6 +71,7 @@ type Room struct {
 	createTime   uint32
 	closeTime    uint32
 	closed       bool
+	released     bool // 已释放
 
 	autoBanker bool
 
@@ -83,16 +86,21 @@ type Room struct {
 
 	round      Round
 	scoreboard Scoreboard // 积分榜
+
+	releaseTimer *time.Timer
 }
 
 func (obj *Room) init(bLoadScoreboard bool) {
-	obj.EventSystem.Init(16)
+	obj.EventSystem.Init(1024, false)
+	base.LogInfo("Room Init. room_id:", obj.roomID)
 	obj.SetEventHandler(roomEventNetworkPacket, obj.handleEventNetworkPacket)
 	obj.SetEventHandler(roomEventUserDisconnect, obj.handleEventUserDisconnect)
 	//obj.SetEventHandler(roomEventUserReconnect, obj.handleEventUserReconnect)
 	obj.SetEventHandler(roomEventGameStateTimeout, obj.handleEventGameStateTimeout)
 	obj.SetEventHandler(roomEventClose, obj.handleEventClose)
 	obj.SetEventHandler(roomEventGetSeatPlayers, obj.handleEventGetSeatPlayers)
+	obj.SetEventHandler(roomEventRelease, obj.handleEventRelease)
+	obj.SetEventHandler(roomEventReleaseTimer, obj.handleEventReleaseTimer)
 
 	obj.networkPacketHandler.Init()
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
@@ -118,6 +126,8 @@ func (obj *Room) init(bLoadScoreboard bool) {
 			base.LogError("[Room][Init] Failed to load scoreboard. error:", err)
 		}
 	}
+
+	obj.beginReleaseTimer()
 
 	// ctx, _ := gApp.CreateCancelContext()
 	// gApp.GoRoutine(ctx, obj.loop)
@@ -187,6 +197,12 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 	uid := args[0].(uint32)
 
 	player := obj.players[uid]
+	if player == nil {
+		return
+	}
+
+	base.LogInfo("handleEventUserDisconnect, uid:", player.uid, ", seatID:", player.seatID, ", room_id:", obj.roomID, ", state:", obj.round.state)
+
 	if (player.seatID >= 0 && (obj.round.state == msg.GameState_Ready || obj.round.state == msg.GameState_Bet)) ||
 		player.seatID < 0 {
 		obj.notifyOthers(player.conn,
@@ -204,6 +220,8 @@ func (obj *Room) handleEventUserDisconnect(args []interface{}) {
 
 		// 将断线玩家踢离房间
 		obj.kickPlayer(player.uid)
+
+		obj.beginReleaseTimer()
 	} else {
 		// 通知其他玩家
 		obj.notifyOthers(player.conn,
@@ -248,6 +266,7 @@ func (obj *Room) handleEventGameStateTimeout(args []interface{}) {
 func (obj *Room) handleEventClose(args []interface{}) {
 	c := args[0].(chan bool)
 
+	base.LogInfo("handleEventClose, room_id:", obj.roomID, ", players:", len(obj.players))
 	if len(obj.players) == 0 {
 		// update db
 		obj.closed = true
@@ -255,8 +274,39 @@ func (obj *Room) handleEventClose(args []interface{}) {
 			base.LogError("Fail to close room. error:", err)
 		}
 		c <- true
+		obj.stopReleaseTimer()
+		obj.released = true
+		obj.Close(false)
 	} else {
 		c <- false
+	}
+}
+
+// 有人不释放
+func (obj *Room) handleEventRelease(args []interface{}) {
+	c := args[0].(chan bool)
+
+	base.LogInfo("handleEventRelease, room_id:", obj.roomID, ", players:", len(obj.players))
+	if len(obj.players) == 0 {
+		obj.stopReleaseTimer()
+		obj.released = true
+		obj.Close(false)
+		c <- true
+		return
+	}
+	c <- false
+}
+
+func (obj *Room) handleEventReleaseTimer(args []interface{}) {
+	// 如果没有玩家，则释放房间
+	base.LogInfo("handleEventReleaseTimer, room_id:", obj.roomID, ", players:", len(obj.players), ", released:", obj.released)
+	if obj.released {
+		return
+	}
+	obj.released = true
+	if len(obj.players) == 0 {
+		base.LogInfo("send roomManagerEventReleaseRoom, room_id:", obj.roomID)
+		roomManager.Send(roomManagerEventReleaseRoom, []interface{}{obj})
 	}
 }
 
@@ -281,7 +331,7 @@ func (obj *Room) handleEventGetSeatPlayers(args []interface{}) {
 }
 func (obj *Room) notifyOthers(userconn *userConnection, p *msg.Protocol) {
 	for uid, player := range obj.players {
-		if userconn == nil || uid == userconn.user.uid || player.conn == nil {
+		if userconn == nil || userconn.user == nil || uid == userconn.user.uid || player.conn == nil {
 			continue
 		}
 
@@ -295,41 +345,55 @@ func (obj *Room) notifyAll(p *msg.Protocol) {
 	}
 }
 
-func (obj *Room) playerJoin(user *User) {
-	obj.players[user.uid] = &RoomPlayer{
-		uid:    user.uid,
-		name:   user.name,
-		avatar: user.avatar,
-		conn:   user.conn,
-		seatID: -1,
-	}
-	user.room = obj
-}
+// func (obj *Room) playerJoin(user *User) {
+// 	obj.players[user.uid] = &RoomPlayer{
+// 		uid:    user.uid,
+// 		name:   user.name,
+// 		avatar: user.avatar,
+// 		conn:   user.conn,
+// 		seatID: -1,
+// 	}
+// 	user.room = obj
+// }
 
-func (obj *Room) playerLeave(user *User) {
-	player, ok := obj.players[user.uid]
-	if !ok {
-		return
-	}
+// func (obj *Room) playerLeave(user *User) {
+// 	player, ok := obj.players[user.uid]
+// 	if !ok {
+// 		return
+// 	}
 
-	if player.seatID >= 0 {
-		obj.tablePlayers[player.seatID] = nil
-	}
-	delete(obj.players, player.uid)
-	user.room = nil
-}
+// 	if player.seatID >= 0 {
+// 		obj.tablePlayers[player.seatID] = nil
+// 	}
+// 	delete(obj.players, player.uid)
+// 	user.room = nil
+// }
 
-func (obj *Room) playerSitDown(user *User) {
+// func (obj *Room) playerSitDown(user *User) {
 
-}
+// }
 
 func (obj *Room) handleJoinRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
+	base.LogInfo("handleJoinRoomReq, room_id:", obj.roomID, ", uid:", p.userconn.user.uid)
+
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
+
+	if obj.released {
+		rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Released
+		return
+	}
 
 	if obj.closed {
 		rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Closed
@@ -368,7 +432,10 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 		seatID = -1
 
 		obj.players[p.userconn.user.uid] = player
-		userManager.enterRoom(p.userconn.user.uid, obj)
+		if !userManager.EnterRoom(p.userconn.user.uid, obj) {
+			// 已经断线了
+			obj.Send(roomEventUserDisconnect, []interface{}{p.userconn.user.uid})
+		}
 	}
 
 	rsp.JoinRoomRsp.Room = &msg.Room{
@@ -438,12 +505,21 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 				}},
 		)
 	}
-
 	p.userconn.user.room = obj
+
+	obj.stopReleaseTimer()
 }
 
 func (obj *Room) handleLeaveRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
@@ -468,7 +544,7 @@ func (obj *Room) handleLeaveRoomReq(arg interface{}) {
 	}
 
 	obj.kickPlayer(player.uid)
-	debug("leave room. uid:", p.userconn.user.uid)
+	base.LogInfo("leave room. uid:", p.userconn.user.uid)
 
 	// 通知房间其他人
 	obj.notifyAll(
@@ -482,10 +558,20 @@ func (obj *Room) handleLeaveRoomReq(arg interface{}) {
 	if needSwitchToReady {
 		obj.round.switchGameState(msg.GameState_Ready)
 	}
+
+	obj.beginReleaseTimer()
 }
 
 func (obj *Room) handleSitDownReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_SitDown_Rsp,
 		SitDownRsp: &msg.SitDownRsp{Ret: msg.ErrorID_Ok},
@@ -562,6 +648,14 @@ func (obj *Room) handleSitDownReq(arg interface{}) {
 
 func (obj *Room) handleStandUpReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_StandUp_Rsp,
 		StandUpRsp: &msg.StandUpRsp{Ret: msg.ErrorID_Ok},
@@ -614,7 +708,7 @@ func (obj *Room) handleStandUpReq(arg interface{}) {
 		}
 		num++
 	}
-	base.LogInfo("num:", num, ", state:", obj.round.state)
+	//base.LogInfo("num:", num, ", state:", obj.round.state)
 	if (player.seatID == 0 || num <= 1) && obj.round.state == msg.GameState_Bet {
 		needSwitchToReady = true
 	}
@@ -630,6 +724,14 @@ func (obj *Room) handleStandUpReq(arg interface{}) {
 
 func (obj *Room) handleAutoBankerReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_AutoBanker_Rsp,
 		AutoBankerRsp: &msg.AutoBankerRsp{Ret: msg.ErrorID_Ok},
@@ -654,6 +756,14 @@ func (obj *Room) handleAutoBankerReq(arg interface{}) {
 
 func (obj *Room) handleStartGameReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	handle := func() bool {
 		rsp := &msg.Protocol{
 			Msgid:        msg.MessageID_StartGame_Rsp,
@@ -705,6 +815,14 @@ func (obj *Room) handleStartGameReq(arg interface{}) {
 
 func (obj *Room) handleBetReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.BetReq
 	rsp := &msg.Protocol{
 		Msgid:  msg.MessageID_Bet_Rsp,
@@ -767,6 +885,14 @@ func (obj *Room) handleBetReq(arg interface{}) {
 
 func (obj *Room) handleCombineReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.CombineReq
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_Combine_Rsp,
@@ -901,6 +1027,14 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 
 func (obj *Room) handleGetScoreboardReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.GetScoreboardReq
 	rsp := &msg.Protocol{
 		Msgid:            msg.MessageID_GetScoreboard_Rsp,
@@ -944,6 +1078,14 @@ func (obj *Room) updateScoreboard(seatID uint32, score int32) {
 
 func (obj *Room) handleGetRoundHistoryReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.GetRoundHistoryReq
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_GetRoundHistory_Rsp,
@@ -995,6 +1137,46 @@ func (obj *Room) kickPlayer(uid uint32) {
 		obj.tablePlayers[player.seatID] = nil
 	}
 
-	userManager.leaveRoom(player.uid, obj)
+	userManager.LeaveRoom(player.uid)
 	delete(obj.players, player.uid)
+}
+
+func (obj *Room) beginReleaseTimer() {
+	if len(obj.players) != 0 {
+		return
+	}
+
+	if obj.releaseTimer == nil {
+		//base.LogInfo("beginReleaseTimer 1, room_id:", obj.roomID)
+		obj.releaseTimer = time.AfterFunc(time.Duration(gApp.config.Room.ReleaseTimeoutSec)*time.Second, obj.handleReleaseTimer)
+	} else {
+		// base.LogInfo("beginReleaseTimer 2, room_id:", obj.roomID)
+		// if !obj.releaseTimer.Stop() {
+		// 	select {
+		// 	case <-obj.releaseTimer.C:
+		// 	default:
+		// 	}
+		// 	obj.releaseTimer.Reset(time.Duration(gApp.config.Room.ReleaseTimeoutSec) * time.Second)
+		// }
+	}
+}
+
+func (obj *Room) stopReleaseTimer() {
+	if obj.releaseTimer == nil {
+		return
+	}
+	//base.LogInfo("stopReleaseTimer room_id:", obj.roomID)
+
+	if !obj.releaseTimer.Stop() {
+		select {
+		case <-obj.releaseTimer.C:
+		default:
+		}
+	}
+	obj.releaseTimer = nil
+}
+
+func (obj *Room) handleReleaseTimer() {
+	//base.LogInfo("handleReleaseTimer, room_id:", obj.roomID)
+	obj.Send(roomEventReleaseTimer, nil)
 }

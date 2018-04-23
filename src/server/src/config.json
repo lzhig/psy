@@ -24,9 +24,10 @@
         "deal_cards_num":13,
         "max_players":20,
         "max_bet_rate":20,
-        "states_countdown":[0, 10000, 2000, 3000, 45000, 1000, 1000, 0],
+        "states_countdown":[0, 2000, 2000, 2000, 2000, 2000, 2000, 0],
         "scoreboard_count_per_time":10,
-        "kick_no_bet_for_hands": 3
+        "kick_no_bet_for_hands": 3,
+        "release_timeout_sec": 1
     },
     "user":{
         "facebook_avatar_type":"normal"

@@ -21,6 +21,7 @@ func (obj *Scoreboard) Init(roomID uint32, playerNum uint32) {
 	obj.Uids = make([]uint32, 0, playerNum)
 }
 
+// GetScore 获取用户积分
 func (obj *Scoreboard) GetScore(uid uint32) int32 {
 	if item, ok := obj.List[uid]; ok {
 		return item.Score
@@ -57,7 +58,7 @@ func (obj *Scoreboard) sort() {
 	})
 }
 
-// todo: 积分榜 每局的更新 加载房间时的读取
+// Load 读取
 func (obj *Scoreboard) Load() error {
 	items, err := db.loadScoreboard(obj.roomID)
 	if err != nil {

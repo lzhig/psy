@@ -77,6 +77,12 @@ func (obj *NetworkEngine) handleBusy(msgid msg.MessageID, conn *userConnection) 
 }
 
 func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
+	if p.userconn.user != nil {
+		base.LogInfo("received msg:", p.p, ", uid:", p.userconn.user.uid)
+	} else {
+		base.LogInfo("received msg:", p.p)
+	}
+
 	switch msgid {
 	case msg.MessageID_Login_Req,
 		msg.MessageID_GetProfile_Req:
@@ -110,7 +116,7 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 				obj.handleBusy(msgid, p.userconn)
 			}
 		} else {
-			base.LogError("Cannot find room. proto:", p)
+			base.LogError("Cannot find room. proto:", p.p, ", uid:", p.userconn.user.uid)
 		}
 
 	case msg.MessageID_SendDiamonds_Req,

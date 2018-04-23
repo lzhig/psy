@@ -130,7 +130,7 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 
 	exist := false
 	var lastTime int64
-	err = obj.db.QueryRow("select time from free_diamonds where uid=?", uid).Scan(&lastTime)
+	err = tx.QueryRow("select time from free_diamonds where uid=?", uid).Scan(&lastTime)
 	switch {
 	case err == sql.ErrNoRows:
 		// 用户还没有领取过
@@ -141,13 +141,15 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 		exist = true
 		if lastTime >= today {
 			// 今天已经领取过了
+			tx.Rollback()
 			return nil
 		}
 	}
 
-	result, err := obj.db.Exec("update users set diamonds=? where uid=? and diamonds<?", diamonds, uid, diamonds)
+	result, err := tx.Exec("update users set diamonds=? where uid=? and diamonds<?", diamonds, uid, diamonds)
 	if err != nil {
 		base.LogError("GiveFreeDiamonds: failed to exec, error:", err, ", uid:", uid, ", diamonds:", diamonds)
+		tx.Rollback()
 		return err
 	}
 	n, _ := result.RowsAffected()
@@ -158,7 +160,7 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 		} else {
 			sql = "insert into free_diamonds (`time`,uid) values(?,?)"
 		}
-		_, err := obj.db.Exec(sql, time.Now().Unix(), uid)
+		_, err := tx.Exec(sql, time.Now().Unix(), uid)
 		if err != nil {
 			base.LogError("GiveFreeDiamonds: failed to exec, error:", err, ", uid:", uid, ", today:", today)
 			tx.Rollback()
@@ -172,6 +174,7 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 	return nil
 }
 
+// ErrorNotEnoughDiamonds 错误
 var ErrorNotEnoughDiamonds = errors.New("diamonds are not enough")
 
 func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, keep uint32) error {

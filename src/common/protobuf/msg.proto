@@ -122,6 +122,7 @@ enum ErrorID {
     JoinRoom_Full = 111; // 已满
     JoinRoom_Already_In = 112; // 已经在房间
     JoinRoom_Closed = 113; // 房间已关闭
+    JoinRoom_Released = 114; // 房间已释放，请重试
 
     LeaveRoom_Not_In = 120; //没有在房间中
     LeaveRoom_Playing = 121; // 游戏中

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"bufio"
 	"flag"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strings"
 )
 
+var roomManager = &RoomManager{}
+
 func main() {
 	var ip = flag.String("address", "127.0.0.1:8010", "help message for flagname")
 	var num = flag.Int("num", 1, "connections")
@@ -18,10 +21,14 @@ func main() {
 	flag.Parse()
 	fmt.Println("id:", *id)
 	runtime.GOMAXPROCS(4)
+
+	roomManager.Init()
+
 	if *num == 1 {
 		fmt.Println("interactive mode")
 		c := client{}
 		c.init(*ip, 5000, fmt.Sprintf("fbid_%d", *id), uint32(*room))
+		c.robot.SwitchDriver("no ai")
 		go c.start()
 
 		go func() {
@@ -74,7 +81,10 @@ func main() {
 						}
 					}
 				case "sd", "sitdown":
-					c.sendSitDown()
+					seatID := c.getEmptySeatID()
+					if seatID >= 0 {
+						c.sendSitDown(uint32(seatID))
+					}
 				case "sg", "startgame":
 					c.sendStartGame()
 				case "b", "bet":
@@ -134,6 +144,7 @@ func main() {
 	}
 	fmt.Println("connecting -", *ip)
 	for i := 0; i < *num; i++ {
+		time.Sleep(time.Millisecond*100)
 		go func(i int) {
 			c := &client{}
 			c.init(*ip, 5000, fmt.Sprintf("fbid_%d", i), uint32(*room))

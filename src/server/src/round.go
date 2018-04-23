@@ -174,7 +174,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 				}
 
 				// check autobanker
-				base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
+				//base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
 				if obj.room.autoBanker {
 					// 如果是自动连庄
 					obj.Begin()
@@ -233,7 +233,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 }
 
 func (obj *Round) switchGameState(state msg.GameState) {
-	base.LogInfo("switchGameState", state)
+	//base.LogInfo("switchGameState", state, ", room_id:", obj.room.roomID, ", players:", len(obj.room.players))
 	obj.state = state
 	obj.stateBeginTime = time.Now()
 	notify := &msg.Protocol{
@@ -245,6 +245,19 @@ func (obj *Round) switchGameState(state msg.GameState) {
 	switch state {
 	case msg.GameState_Ready:
 		obj.Begin()
+
+		// check disconnected players
+		for _, player := range obj.room.tablePlayers {
+			if player == nil {
+				continue
+			}
+
+			if player.conn == nil {
+				obj.room.kickPlayer(player.uid)
+			}
+		}
+
+		obj.room.beginReleaseTimer()
 
 		// 流局不再增加局数
 		//obj.room.nextRound()
@@ -327,17 +340,19 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 			// kick all players
 			for _, player := range obj.room.players {
-				//delete(obj.room.players, player.uid)
 				if player.seatID >= 0 {
 					obj.room.tablePlayers[player.seatID] = nil
 				}
-				userManager.leaveRoom(player.uid, obj.room)
-				player.conn.user.room = nil
+				userManager.LeaveRoom(player.uid)
+				delete(obj.room.players, player.uid)
 			}
 		}
 
 	case msg.GameState_CloseRoom:
 		obj.room.closed = true
+
+		// 关闭房间
+		roomManager.Send(roomManagerEventCloseRoom, []interface{}{obj.room})
 	}
 
 	if notify.GameStateNotify.Countdown > 0 {
@@ -353,7 +368,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 }
 
 func (obj *Round) deal() {
-	base.LogInfo("[Round][deal]")
+	//base.LogInfo("[Round][deal]")
 	cards := dealer.deal()
 	//cards := []uint32{0, 1, 2, 3, 12, 5, 6, 7, 8, 9, 24, 13, 43, 47, 26, 27, 28, 29, 38, 31, 32, 33, 34, 35, 50, 39}
 
@@ -438,34 +453,39 @@ func (obj *Round) calculateResult() {
 			if ndx != 0 {
 				num = 5
 			}
-			if ndx == 0 && len(group.Cards) < 3 {
-				autoCombine = true
-			} else if ndx != 0 && len(group.Cards) < 5 {
+			if (ndx == 0 && len(group.Cards) < 3) || (ndx != 0 && len(group.Cards) < 5) {
 				autoCombine = true
 			}
+			var cards []uint32
+			var rank msg.CardRank
 			if autoCombine {
-				formCards, rank, ok := findCardRank(leftCards, group.Cards, num)
-				base.LogInfo(formCards, rank, ok)
+				var ok bool
+				// 为剩下的空位选择最大的牌型
+				cards, rank, ok = findCardRank(leftCards, nil, num-len(group.Cards))
+				base.LogInfo(cards, rank, ok)
 				if !ok {
-					base.LogError("failed to find card rank. left cards=", obj.leftCards[result.SeatId], ",init cards=", group.Cards)
-					rank = msg.CardRank_High_Card
-				} else {
-					// 移去用掉的牌
-					pos := 0
-					for _, v := range formCards {
-						for i, c := range leftCards {
-							if v == c {
-								leftCards[pos], leftCards[i] = leftCards[i], leftCards[pos]
-								pos++
-							}
+					base.LogError("Failed to find cards. left cards = ", leftCards, ", num = ", num)
+				}
+				group.Cards = append(group.Cards, cards...)
+
+				// 移去用过的牌
+				pos := 0
+				for _, v := range cards {
+					for i, c := range leftCards {
+						if v == c {
+							leftCards[pos], leftCards[i] = leftCards[i], leftCards[pos]
+							pos++
 						}
 					}
-					leftCards = leftCards[pos:]
-					group.Cards = formCards
 				}
+				leftCards = leftCards[pos:]
+			}
+
+			if len(group.Cards) == 0 {
 				result.Ranks[ndx] = rank
+				group.Cards = cards
 			} else {
-				//result.Ranks[ndx] = calculateCardRank(group.Cards)
+				// 计算牌型
 				formCards, rank, ok := findCardRank(nil, group.Cards, num)
 				base.LogInfo(formCards, rank, ok)
 				if !ok {
@@ -575,7 +595,7 @@ func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
 			if i != 0 {
 				num = 5
 			}
-			base.LogInfo(a.CardGroups[i], b.CardGroups[i])
+			//base.LogInfo(a.CardGroups[i], b.CardGroups[i])
 			for j := 0; j < num; j++ {
 				v1 := a.CardGroups[i].Cards[j] % 13
 				v2 := b.CardGroups[i].Cards[j] % 13

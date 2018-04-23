@@ -11,14 +11,16 @@ const (
 	careerEventNetworkPacket base.EventID = iota
 )
 
+// CareerCenter type
 type CareerCenter struct {
 	base.EventSystem
 
 	networkPacketHandler base.MessageHandlerImpl
 }
 
+// Init function
 func (obj *CareerCenter) Init() {
-	obj.EventSystem.Init(16)
+	obj.EventSystem.Init(1024, false)
 	obj.SetEventHandler(careerEventNetworkPacket, obj.handleEventNetworkPacket)
 
 	obj.networkPacketHandler.Init()
@@ -41,6 +43,14 @@ func (obj *CareerCenter) handleEventNetworkPacket(args []interface{}) {
 
 func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerWinLoseData_Rsp,
 		CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_Ok},
@@ -80,17 +90,16 @@ func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 	}
 }
 
-func (obj *CareerCenter) handleBusyCareerWinLoseData(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	rsp := &msg.Protocol{
-		Msgid:                msg.MessageID_CareerWinLoseData_Rsp,
-		CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_System_Busy},
-	}
-	p.userconn.sendProtocol(rsp)
-}
-
 func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerRoomRecords_Rsp,
 		CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_Ok},
@@ -118,13 +127,4 @@ func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 		}
 		room.Items = scoreboard
 	}
-}
-
-func (obj *CareerCenter) handleBusyCareerRoomRecords(arg interface{}) {
-	p := arg.(*ProtocolConnection)
-	rsp := &msg.Protocol{
-		Msgid:                msg.MessageID_CareerRoomRecords_Rsp,
-		CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_System_Busy},
-	}
-	p.userconn.sendProtocol(rsp)
 }

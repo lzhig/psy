@@ -28,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6061", nil))
+		log.Println(http.ListenAndServe(":6061", nil))
 	}()
 
 	base.LogInit("./log")

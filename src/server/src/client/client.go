@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 
 	"../msg"
@@ -9,6 +10,15 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/lzhig/rapidgo/base"
 	"github.com/lzhig/rapidgo/rapidnet"
+)
+
+const (
+	actionLogin ActionID = iota
+	actionLeaveRoom
+	actionListRooms
+	actionJoinRoom
+	actionSitDownNotify
+	actionStandUp
 )
 
 type client struct {
@@ -22,10 +32,17 @@ type client struct {
 
 	protoHandler protocolHandler
 
+	robot *Robot
+
+	room            *msg.Room
+	waittingPlayers uint32
+
 	uid        uint32
-	seatID     uint32
+	seatID     int32
 	cards      []uint32
 	roomNumber uint32
+
+	s *rand.Rand
 }
 
 func (obj *client) init(addr string, timeout uint32, fbID string, roomNumber uint32) {
@@ -34,8 +51,78 @@ func (obj *client) init(addr string, timeout uint32, fbID string, roomNumber uin
 	obj.tcpClient = rapidnet.CreateTCPClient()
 	obj.fbID = fbID
 	obj.roomNumber = roomNumber
+	obj.seatID = -1
+	obj.s = rand.New(rand.NewSource(time.Now().Unix()))
 
 	obj.protoHandler.init(obj)
+
+	obj.initRobot()
+}
+
+func (obj *client) initRobot() {
+	obj.robot = &Robot{}
+	obj.robot.Init()
+
+	obj.initRobotNoAi()
+	obj.initRobotNormalAi()
+
+	if !obj.robot.SwitchDriver("normal") {
+		base.LogError("Cannot find the driver")
+	}
+}
+
+func (obj *client) initRobotNoAi() {
+	obj.robot.Set("no ai", NewRobotDriver())
+}
+
+func (obj *client) initRobotNormalAi() {
+	robotDriver := NewRobotDriver()
+
+	// Login
+	strategy := &RobotStrategy{}
+	strategy.Set([]*RobotAction{
+		NewRobotAction(1000, obj.sendListRooms),
+	})
+	robotDriver.Set(actionLogin, strategy)
+
+	// list room
+	strategy = &RobotStrategy{}
+	strategy.Set([]*RobotAction{
+		NewRobotAction(10, obj.JoinAvaliableRoom),
+	})
+	robotDriver.Set(actionListRooms, strategy)
+	robotDriver.Set(actionLeaveRoom, strategy)
+
+	// join room
+	strategy = &RobotStrategy{}
+	strategy.Set([]*RobotAction{
+		NewRobotAction(10, obj.sitDown),
+	})
+	robotDriver.Set(actionJoinRoom, strategy)
+
+	// sit down
+	strategy = &RobotStrategy{}
+	strategy.Set([]*RobotAction{
+		NewRobotAction(10, func() {
+			log(obj, "players: ", obj.room.Players)
+			tablePlayers := obj.getTablePlayers()
+			if obj.room.State == msg.GameState_Ready && obj.seatID == 0 && tablePlayers > obj.waittingPlayers {
+				obj.sendStartGame()
+			} else {
+				log(obj, "waitting more players.state=", obj.room.State, ", players=", obj.waittingPlayers, ", tablePlayers=", tablePlayers)
+			}
+		}),
+	})
+	robotDriver.Set(actionSitDownNotify, strategy)
+
+	// stand up
+	strategy = &RobotStrategy{}
+	strategy.Set([]*RobotAction{
+		//NewRobotAction(10, obj.sitDown),
+	})
+	robotDriver.Set(actionStandUp, strategy)
+
+	obj.robot.Set("normal", robotDriver)
 }
 
 func (obj *client) start() {
@@ -72,6 +159,7 @@ func (obj *client) start() {
 }
 
 func (obj *client) sendProtocol(p *msg.Protocol) {
+	//log(obj, "send:", p)
 	data, err := proto.Marshal(p)
 	if err != nil {
 		log(obj, "Failed to marshal. p:", p, "error:", err)
@@ -80,7 +168,7 @@ func (obj *client) sendProtocol(p *msg.Protocol) {
 }
 
 func (obj *client) sendLoginReq() {
-	log(obj, "send login request")
+	//log(obj, "send login request")
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_Login_Req,
@@ -143,7 +231,7 @@ func (obj *client) sendCreateRoom() {
 				Name:         "fight",
 				MinBet:       5,
 				MaxBet:       100,
-				Hands:        10,
+				Hands:        20,
 				CreditPoints: 0,
 				IsShare:      false,
 			},
@@ -172,6 +260,23 @@ func (obj *client) sendJoinRoom(number int) {
 		})
 }
 
+func (obj *client) JoinAvaliableRoom() {
+	c := make(chan *Room)
+	roomManager.Send(roomManagerEventGetAvaliableRoom, []interface{}{c})
+	room := <-c
+	if room == nil {
+		obj.sendCreateRoom()
+	} else {
+		obj.sendProtocol(
+			&msg.Protocol{
+				Msgid: msg.MessageID_JoinRoom_Req,
+				JoinRoomReq: &msg.JoinRoomReq{
+					RoomNumber: room.number,
+				},
+			})
+	}
+}
+
 func (obj *client) sendLeaveRoom() {
 	obj.sendProtocol(
 		&msg.Protocol{
@@ -180,12 +285,55 @@ func (obj *client) sendLeaveRoom() {
 		})
 }
 
-func (obj *client) sendSitDown() {
+func (obj *client) sitDown() {
+	obj.seatID = obj.getEmptySeatID()
+	log(obj, "seatID = ", obj.seatID)
+	if obj.seatID >= 0 {
+		obj.sendSitDown(uint32(obj.seatID))
+	} else {
+		obj.sendLeaveRoom()
+	}
+}
+
+func (obj *client) sendSitDown(seatID uint32) {
+	if obj.room == nil {
+		base.LogError("cannot sit down because not in a room")
+		return
+	}
+
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:      msg.MessageID_SitDown_Req,
-			SitDownReq: &msg.SitDownReq{SeatId: obj.seatID},
+			SitDownReq: &msg.SitDownReq{SeatId: seatID},
 		})
+}
+
+func (obj *client) getEmptySeatID() int32 {
+	for seatID := uint32(0); seatID < 4; seatID++ {
+		found := false
+		for _, player := range obj.room.Players {
+			if player.SeatId >= 0 && uint32(player.SeatId) == seatID {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return int32(seatID)
+		}
+	}
+	return -1
+}
+
+func (obj *client) getTablePlayers() uint32 {
+	num := uint32(0)
+	for _, player := range obj.room.Players {
+		if player.SeatId >= 0 {
+			num++
+		}
+	}
+
+	return num
 }
 
 func (obj *client) sendBet() {
@@ -278,5 +426,5 @@ func (obj *client) handleConnection(conn *rapidnet.Connection) {
 }
 
 func log(c *client, args ...interface{}) {
-	fmt.Println("fbID:", c.fbID, " ---- ", fmt.Sprint(args...))
+	base.LogInfo("fbID:", c.fbID, " ---- ", fmt.Sprint(args...))
 }

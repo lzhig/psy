@@ -10,6 +10,8 @@ import (
 
 const (
 	roomManagerEventNetworkPacket base.EventID = iota
+	roomManagerEventCloseRoom
+	roomManagerEventReleaseRoom
 )
 
 // RoomManager type
@@ -25,8 +27,10 @@ type RoomManager struct {
 }
 
 func (obj *RoomManager) init() error {
-	obj.EventSystem.Init(16)
+	obj.EventSystem.Init(1024, false)
 	obj.SetEventHandler(roomManagerEventNetworkPacket, obj.handleEventNetworkPacket)
+	obj.SetEventHandler(roomManagerEventCloseRoom, obj.handleEventCloseRoom)
+	obj.SetEventHandler(roomManagerEventReleaseRoom, obj.handleEventReleaseRoom)
 
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
@@ -54,6 +58,24 @@ func (obj *RoomManager) handleEventNetworkPacket(args []interface{}) {
 	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
 		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 		p.userconn.Disconnect()
+	}
+}
+
+func (obj *RoomManager) handleEventCloseRoom(args []interface{}) {
+	room := args[0].(*Room)
+	obj.CloseRoom(room.roomID)
+}
+
+func (obj *RoomManager) handleEventReleaseRoom(args []interface{}) {
+	room := args[0].(*Room)
+	base.LogInfo("RoomManager.handleEventReleaseRoom, room_id:", room.roomID)
+	c := make(chan bool)
+	room.Send(roomEventRelease, []interface{}{c})
+	released := <-c
+	if released {
+		base.LogInfo("room_id:", room.roomID, " released")
+		obj.rooms.Delete(room.roomID)
+		delete(obj.roomsNumber, room.number)
 	}
 }
 
@@ -85,14 +107,20 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 		closeTime:    0,
 		closed:       false,
 	}
+
 	obj.rooms.Store(roomID, room)
 	obj.roomsNumber[num] = room
 	room.init(bLoadScoreboard)
 	return room
 }
 
+// CloseRoom 关闭房间
 func (obj *RoomManager) CloseRoom(roomid uint32) bool {
-	base.LogInfo("CloseRoom, roomid:", roomid)
+	base.LogInfo("CloseRoom, room_id:", roomid, ", left:", len(obj.roomsNumber))
+	for _, room := range obj.roomsNumber {
+		base.LogInfo("room_id:", room.roomID, ", status:", room.round.state, ", players:", room.players)
+		break
+	}
 	obj.roomlocker.Lock(roomid)
 	defer obj.roomlocker.Unlock(roomid)
 
@@ -103,6 +131,13 @@ func (obj *RoomManager) CloseRoom(roomid uint32) bool {
 		//room.notifyCloseRoom(c)
 		room.Send(roomEventClose, []interface{}{c})
 		closed := <-c
+
+		if closed {
+			base.LogInfo("room_id:", roomid, ", closed")
+			obj.rooms.Delete(roomid)
+			delete(obj.roomsNumber, room.number)
+		}
+
 		return closed
 	}
 

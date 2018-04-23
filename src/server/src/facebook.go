@@ -30,12 +30,16 @@ func (obj *FacebookUser) GetUID() (uint32, error) {
 	return db.getUIDFacebook(obj.Fbid)
 }
 
+// SaveToDB 保存到Db
 func (obj *FacebookUser) SaveToDB(uid uint32) error {
 	return db.AddFacebookUser(obj.Fbid, uid)
 }
 
+// GetPlatformID 返回平台id
 func (obj *FacebookUser) GetPlatformID() uint32 { return 0 }
-func (obj *FacebookUser) GetName() string       { return obj.Name }
+
+// GetName 返回用户名字
+func (obj *FacebookUser) GetName() string { return obj.Name }
 
 // FacebookUserCheck 验证facebook用户合法性
 type FacebookUserCheck struct {

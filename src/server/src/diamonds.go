@@ -21,7 +21,7 @@ type DiamondsCenter struct {
 }
 
 func (obj *DiamondsCenter) init() {
-	obj.EventSystem.Init(16)
+	obj.EventSystem.Init(1024, false)
 	obj.SetEventHandler(diamondsEventNetworkPacket, obj.handleEventNetworkPacket)
 
 	obj.networkPacketHandler.Init()
@@ -49,6 +49,14 @@ func (obj *DiamondsCenter) Pay(from, to uint32, diamonds uint32, keep uint32) er
 
 func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:           msg.MessageID_SendDiamonds_Rsp,
 		SendDiamondsRsp: &msg.SendDiamondsRsp{Ret: msg.ErrorID_Ok},
@@ -86,6 +94,14 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 
 func (obj *DiamondsCenter) handleDiamondsRecordsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_DiamondsRecords_Rsp,
 		DiamondsRecordsRsp: &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_Ok},
@@ -131,11 +147,11 @@ func (obj *DiamondsCenter) handleDiamondsRecordsReq(arg interface{}) {
 	for _, record := range records {
 		if _, ok := users[record.Uid]; !ok {
 			// 获取用户信息
-			if user := userManager.GetUser(record.Uid); user != nil {
+			if name, avatar, ok := userManager.GetUserNameAvatar(record.Uid); ok {
 				users[record.Uid] = &msg.UserNameAvatar{
 					Uid:    record.Uid,
-					Name:   user.name,
-					Avatar: user.avatar,
+					Name:   name,
+					Avatar: avatar,
 				}
 				continue
 			}

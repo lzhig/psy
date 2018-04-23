@@ -15,6 +15,7 @@ type VersionService struct {
 	updateChan chan struct{}
 }
 
+// UpdateVersionInfo type
 func (obj *VersionService) UpdateVersionInfo() {
 	obj.updateChan <- struct{}{}
 }

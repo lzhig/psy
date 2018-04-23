@@ -31,7 +31,7 @@ type LoginService struct {
 }
 
 func (obj *LoginService) init() {
-	obj.EventSystem.Init(16)
+	obj.EventSystem.Init(1024, true)
 	obj.SetEventHandler(loginEventNetworkPacket, obj.handleEventNetworkPacket)
 
 	obj.networkPacketHandler.Init()
@@ -58,6 +58,14 @@ func (obj *LoginService) handleEventNetworkPacket(args []interface{}) {
 
 func (obj *LoginService) handleLogin(arg interface{}) {
 	pc := arg.(*ProtocolConnection)
+
+	// pc.userconn.mxJoinroom.Lock()
+	// defer pc.userconn.mxJoinroom.Unlock()
+
+	// if pc.userconn.conn == nil {
+	// 	return
+	// }
+
 	p := pc.p
 	userconn := pc.userconn
 
@@ -97,40 +105,21 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 
 			if uid == 0 {
 				// if doesn't exist, create account in db
-				u, err = userManager.CreateUser(user, userconn)
+				u = userManager.CreateUser(user, userconn)
 				// uid, err = userManager.fbUserCreate(fbid, name, userconn)
-				if err != nil {
+				if u == nil {
 					errHandle(msg.ErrorID_DB_Error)
 					userconn.sendProtocol(rsp)
 					return
 				}
 			} else {
-				// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
-				u = userManager.GetUser(uid)
+				// login不再返回room number
+				u = userManager.LoadUser(user, uid, userconn)
 				if u == nil {
-					u, err = userManager.LoadUser(user, uid, userconn)
-					if err != nil {
-						errHandle(msg.ErrorID_DB_Error)
-						userconn.sendProtocol(rsp)
-						return
-					}
-				} else {
-					if userManager.userIsConnected(uid) {
-						userManager.setUserConnection(uid, userconn)
-					}
-					// login不再返回room number
-					// if room, err := userManager.getRoomUserPlaying(uid); err == nil {
-					// 	// 如果是用户断线重连
-					// 	rsp.LoginRsp.RoomNumber = roomNumberGenerator.decode(room.number)
-					// }
-
-					u.platformUser = user
-					u.name = user.GetName()
-
+					errHandle(msg.ErrorID_DB_Error)
+					userconn.sendProtocol(rsp)
+					return
 				}
-
-				u.conn = userconn
-				db.UpdateName(uid, u.name)
 			}
 
 			userconn.user = u
@@ -171,6 +160,13 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 func (obj *LoginService) handleGetProfile(arg interface{}) {
 	pc := arg.(*ProtocolConnection)
 	userconn := pc.userconn
+
+	// pc.userconn.mxJoinroom.Lock()
+	// defer pc.userconn.mxJoinroom.Unlock()
+
+	// if pc.userconn.conn == nil || pc.userconn.user == nil {
+	// 	return
+	// }
 
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_GetProfile_Rsp,

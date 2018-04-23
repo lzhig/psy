@@ -10,6 +10,14 @@ import (
 
 func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.CreateRoomReq
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_CreateRoom_Rsp,
@@ -95,6 +103,13 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	req := p.p.JoinRoomReq
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
@@ -142,12 +157,19 @@ func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 
-	room := userManager.getUserRoom(p.userconn.user.uid)
+	room := userManager.GetUserRoom(p.userconn.user.uid)
 	if room == nil {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
 		p.userconn.sendProtocol(rsp)
@@ -160,6 +182,13 @@ func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_ListRooms_Rsp,
 		ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_Ok},
@@ -191,6 +220,13 @@ func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 
 func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_CloseRoom_Rsp,
 		CloseRoomRsp: &msg.CloseRoomRsp{Ret: msg.ErrorID_Ok},
@@ -208,13 +244,21 @@ func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleGetPlayingRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+
+	// p.userconn.mxJoinroom.Lock()
+	// defer p.userconn.mxJoinroom.Unlock()
+
+	// if p.userconn.conn == nil || p.userconn.user == nil {
+	// 	return
+	// }
+
 	rsp := &msg.Protocol{
 		Msgid:             msg.MessageID_GetPlayingRoom_Rsp,
 		GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
 
-	if user := userManager.GetUser(p.userconn.user.uid); user != nil && user.room != nil {
-		rsp.GetPlayingRoomRsp.RoomNumber = roomNumberGenerator.decode(user.room.number)
+	if room := userManager.GetUserRoom(p.userconn.user.uid); room != nil {
+		rsp.GetPlayingRoomRsp.RoomNumber = roomNumberGenerator.decode(room.number)
 	}
 }

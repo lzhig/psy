@@ -76,7 +76,9 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 	userconn := args[0].(*userConnection)
 	defer func() {
 		if userconn.user != nil {
+			base.LogInfo("disconnected. uid:", userconn.user.uid)
 			userManager.userDisconnect(userconn.user.uid, userconn)
+			//userconn.user = nil
 		}
 	}()
 	for {
@@ -112,6 +114,7 @@ type userConnection struct {
 	//name string
 	user *User
 	conn *rapidnet.Connection
+	//mxJoinroom sync.Mutex
 	//room *Room
 }
 

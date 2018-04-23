@@ -21,6 +21,10 @@ func (obj *gameManager) Start(addr string) {
 		http.HandleFunc("/GmOperation", gmOperationHandler)
 		http.HandleFunc("/exit", gmExit)
 		http.HandleFunc("/updateVersion", gmUpdateVersion)
+		http.HandleFunc("/flushLog", func(w http.ResponseWriter, r *http.Request) {
+			base.LogInfo(roomManager.roomsNumber)
+			base.LogFlush()
+		})
 		http.ListenAndServe(addr, nil)
 	}()
 }
@@ -31,6 +35,7 @@ func userCountHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func gmExit(w http.ResponseWriter, r *http.Request) {
+	base.LogFlush()
 	gApp.Exit()
 	io.WriteString(w, "exit.\r\n")
 }

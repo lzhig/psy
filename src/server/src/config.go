@@ -41,6 +41,7 @@ type roomConfig struct {
 	StatesCountdown        []uint32 `json:"states_countdown"`
 	ScoreboardCountPerTime uint32   `json:"scoreboard_count_per_time"`
 	KickNoBetForHands      uint32   `json:"kick_no_bet_for_hands"`
+	ReleaseTimeoutSec      uint32   `json:"release_timeout_sec"`
 }
 
 type userConfig struct {
