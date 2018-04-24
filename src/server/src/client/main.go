@@ -1,7 +1,6 @@
 package main
 
 import (
-	"time"
 	"bufio"
 	"flag"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var roomManager = &RoomManager{}
@@ -89,6 +89,8 @@ func main() {
 					c.sendStartGame()
 				case "b", "bet":
 					c.sendBet()
+				case "c", "combine":
+					c.sendCombine()
 				case "su", "standup":
 					c.sendStandUp()
 				case "leaveroom":
@@ -144,7 +146,7 @@ func main() {
 	}
 	fmt.Println("connecting -", *ip)
 	for i := 0; i < *num; i++ {
-		time.Sleep(time.Millisecond*100)
+		time.Sleep(time.Millisecond * 100)
 		go func(i int) {
 			c := &client{}
 			c.init(*ip, 5000, fmt.Sprintf("fbid_%d", i), uint32(*room))
@@ -167,6 +169,7 @@ func showHelp() {
 	sd, sitdown - sit down
 	sg, startgame - start game
 	b, bet - bet
+	c, combine - combine
 	su, standup - stand up
 	leaveroom - leave room
 	ab, autobanker - auto banker
