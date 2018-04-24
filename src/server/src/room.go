@@ -10,6 +10,7 @@ package main
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -451,6 +452,7 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 		Players:      make([]*msg.Player, len(obj.players)),
 		State:        obj.round.state,
 	}
+
 	//cards
 	if seatID >= 0 {
 		if cards, ok := obj.round.handCards[uint32(seatID)]; ok {
@@ -464,6 +466,7 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 	} else {
 		rsp.JoinRoomRsp.Room.Countdown = int32(gApp.config.Room.StatesCountdown[obj.round.state]) - int32(time.Now().Sub(obj.round.stateBeginTime).Seconds()*1000)
 	}
+
 	//result
 	if len(obj.round.result) > 0 {
 		rsp.JoinRoomRsp.Room.Result = make([]*msg.SeatResult, len(obj.round.result))
@@ -902,7 +905,7 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 	defer p.userconn.sendProtocol(rsp)
 
 	// game state
-	if obj.round.state != msg.GameState_Combine {
+	if obj.round.state != msg.GameState_Combine && obj.round.state != msg.GameState_Confirm_Combine {
 		rsp.CombineRsp.Ret = msg.ErrorID_Combine_Not_Combine_State
 		return
 	}
@@ -927,6 +930,15 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 		return
 	}
 
+	// 先将手牌从大到小排序
+	sort.Slice(cards, func(i, j int) bool {
+		return cards[i] > cards[j]
+	})
+
+	// 最终牌组
+	finalGroups := make([]*msg.CardGroup, 3)
+	ranks := make([]msg.CardRank, 3)
+
 	if !req.Autowin {
 
 		// 验证请求数据
@@ -942,54 +954,51 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 			}
 		}
 
-		// 验证牌是否为手牌
-		autoCombine := false
-		for ndx, group := range req.CardGroups {
-			// 检查是否组牌完成
-			if ndx == 0 && len(group.Cards) < 3 {
-				autoCombine = true
-				break
-			} else if len(group.Cards) < 5 {
-				autoCombine = true
-				break
-			}
-		}
-		cardsLeft := make(map[uint32]bool)
-		if autoCombine {
-			for _, v := range cards {
-				cardsLeft[v] = true
-			}
-		}
-
-		f := func(cards []uint32, card uint32) bool {
-			for _, c := range cards {
-				if c == card {
-					return true
-				}
-			}
-			return false
-		}
+		// 验证提交的牌是否为手中的牌， 并记录提交的牌
+		cardsUsed := make(map[uint32]bool)
 		for _, group := range req.CardGroups {
-			for _, c := range group.Cards {
-				if !f(cards, c) {
+			for _, card := range group.Cards {
+				if ndx := func(cards []uint32, card uint32) int {
+					low := 0
+					high := len(cards) - 1
+					for low <= high {
+						median := (low + high) / 2
+						if cards[median] > card {
+							low = median + 1
+						} else {
+							high = median - 1
+						}
+					}
+
+					if low == len(cards) || cards[low] != card {
+						return -1
+					}
+
+					return low
+				}(cards, card); ndx == -1 {
 					rspProto.Ret = msg.ErrorID_Combine_Invalid_Request_Data
 					return
-				}
-				if autoCombine {
-					delete(cardsLeft, c)
+				} else {
+					cardsUsed[cards[ndx]] = true
 				}
 			}
 		}
 
-		if autoCombine {
-			c := make([]uint32, len(cardsLeft))
+		var leftCards []uint32
+		if len(cards) != len(cardsUsed) {
+			// 补牌
+			leftCards := make([]uint32, len(cards)-len(cardsUsed))
 			i := 0
-			for v := range cardsLeft {
-				c[i] = v
-				i++
+			for _, card := range cards {
+				if _, ok := cardsUsed[card]; !ok {
+					leftCards[i] = card
+					i++
+				}
 			}
-			obj.round.leftCards[seatID] = c
 		}
+
+		// 自动摆牌
+		finalGroups, ranks = obj.round.autoCombine(req.CardGroups, leftCards)
 	} else {
 		// 检查是否满足autowin条件
 		cards := make([]uint32, 0, 5)
@@ -998,12 +1007,16 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 			rspProto.Ret = msg.ErrorID_Combine_Not_Lucky
 			return
 		}
-		obj.round.leftCards[seatID] = obj.round.handCards[seatID]
+
+		// 自动摆牌
+		finalGroups, ranks = obj.round.autoCombine(nil, cards)
 	}
+	rspProto.CardGroups = finalGroups
 
 	obj.round.result[seatID] = &msg.SeatResult{
 		SeatId:     seatID,
-		CardGroups: req.CardGroups,
+		CardGroups: finalGroups,
+		Ranks:      ranks,
 		Autowin:    req.Autowin,
 		Uid:        player.uid,
 	}

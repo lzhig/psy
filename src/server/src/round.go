@@ -13,13 +13,13 @@ import (
 // Round 表示一局
 type Round struct {
 	room           *Room
-	state          msg.GameState              // 游戏状态
-	stateBeginTime time.Time                  // 状态开始时间
-	players        map[uint32]*RoomPlayer     // 本局参与的玩家
-	handCards      map[uint32][]uint32        // 各个座位的发牌
-	leftCards      map[uint32][]uint32        // 各个座位组牌剩下的牌
-	betChips       map[uint32]uint32          // 各个座位的下注
-	result         map[uint32]*msg.SeatResult // 各个座位的结算
+	state          msg.GameState          // 游戏状态
+	stateBeginTime time.Time              // 状态开始时间
+	players        map[uint32]*RoomPlayer // 本局参与的玩家
+	handCards      map[uint32][]uint32    // 各个座位的发牌
+	//leftCards      map[uint32][]uint32        // 各个座位组牌剩下的牌
+	betChips map[uint32]uint32          // 各个座位的下注
+	result   map[uint32]*msg.SeatResult // 各个座位的结算
 
 	stateTimeout *time.Timer
 }
@@ -37,7 +37,6 @@ func (obj *Round) Begin() {
 	obj.players = make(map[uint32]*RoomPlayer)
 	obj.betChips = make(map[uint32]uint32)
 	obj.handCards = make(map[uint32][]uint32)
-	obj.leftCards = make(map[uint32][]uint32)
 	obj.result = make(map[uint32]*msg.SeatResult)
 }
 
@@ -111,6 +110,8 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 		case msg.GameState_Deal:
 			obj.switchGameState(msg.GameState_Combine)
 		case msg.GameState_Combine:
+			obj.switchGameState(msg.GameState_Confirm_Combine)
+		case msg.GameState_Confirm_Combine:
 			obj.switchGameState(msg.GameState_Show)
 		case msg.GameState_Show:
 			obj.switchGameState(msg.GameState_Result)
@@ -269,7 +270,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		notify.GameStateNotify.PlayedHands = obj.room.playedHands
 		obj.room.notifyAll(notify)
 
-	case msg.GameState_Combine:
+	case msg.GameState_Combine, msg.GameState_Confirm_Combine:
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_Confirm_Bet:
@@ -408,95 +409,57 @@ func (obj *Round) isJoinPlayer(seatID int32) bool {
 	return false
 }
 
+func (obj *Round) autoCombine(already []*msg.CardGroup, leftCards []uint32) ([]*msg.CardGroup, []msg.CardRank) {
+	finalGroups := make([]*msg.CardGroup, 3)
+	ranks := make([]msg.CardRank, 3)
+	for ndx := 2; ndx >= 0; ndx-- {
+		num := 5
+		if ndx == 0 {
+			num = 3
+		}
+		var groupCards []uint32
+		if already != nil && len(already) > ndx {
+			groupCards = already[ndx].Cards
+		}
+
+		formCards, rank, ok := findCardRank(leftCards, groupCards, num)
+		if !ok {
+			base.LogError("failed to find card rank. left cards=", leftCards, ", groupCards=", groupCards, ", num:", num, ", ndx:", ndx)
+		} else {
+			// 移去用过的牌
+			pos := 0
+			for _, v := range formCards {
+				for i, c := range leftCards {
+					if v == c {
+						leftCards[pos], leftCards[i] = leftCards[i], leftCards[pos]
+						pos++
+					}
+				}
+			}
+			leftCards = leftCards[pos:]
+		}
+		ranks[ndx] = rank
+		finalGroups[ndx] = &msg.CardGroup{Cards: formCards}
+	}
+	return finalGroups, ranks
+}
+
 func (obj *Round) calculateResult() {
 	// 检查每个参与本局的玩家是否有提交组牌
 	for seatID, player := range obj.players {
 		if _, ok := obj.result[seatID]; !ok {
+			cardGroups, ranks := obj.autoCombine(nil, obj.handCards[seatID])
 			obj.result[seatID] = &msg.SeatResult{
-				SeatId: seatID,
-				CardGroups: []*msg.CardGroup{
-					&msg.CardGroup{Cards: make([]uint32, 0, 3)},
-					&msg.CardGroup{Cards: make([]uint32, 0, 5)},
-					&msg.CardGroup{Cards: make([]uint32, 0, 5)},
-				},
-				Autowin: false,
-				Uid:     player.uid,
-			}
-			// leftCards
-			obj.leftCards[seatID] = make([]uint32, len(obj.handCards[seatID]))
-			copy(obj.leftCards[seatID], obj.handCards[seatID])
-		}
-	}
-
-	// 计算牌型
-	var bankerResult *msg.SeatResult
-	for _, result := range obj.result {
-		if result.SeatId == 0 {
-			bankerResult = result
-		}
-
-		// 有lucky时，需要计算组牌
-		// if result.Autowin {
-		// 	continue
-		// }
-
-		result.Ranks = make([]msg.CardRank, 3)
-		leftCards := obj.leftCards[result.SeatId]
-		base.LogInfo("leftCards:", leftCards)
-		for ndx := 2; ndx >= 0; ndx-- {
-			group := result.CardGroups[ndx]
-			base.LogInfo(ndx, group.Cards)
-
-			// 自动组牌
-			autoCombine := false
-			num := 3
-			if ndx != 0 {
-				num = 5
-			}
-			if (ndx == 0 && len(group.Cards) < 3) || (ndx != 0 && len(group.Cards) < 5) {
-				autoCombine = true
-			}
-			var cards []uint32
-			var rank msg.CardRank
-			if autoCombine {
-				var ok bool
-				// 为剩下的空位选择最大的牌型
-				cards, rank, ok = findCardRank(leftCards, nil, num-len(group.Cards))
-				base.LogInfo(cards, rank, ok)
-				if !ok {
-					base.LogError("Failed to find cards. left cards = ", leftCards, ", num = ", num)
-				}
-				group.Cards = append(group.Cards, cards...)
-
-				// 移去用过的牌
-				pos := 0
-				for _, v := range cards {
-					for i, c := range leftCards {
-						if v == c {
-							leftCards[pos], leftCards[i] = leftCards[i], leftCards[pos]
-							pos++
-						}
-					}
-				}
-				leftCards = leftCards[pos:]
-			}
-
-			if len(group.Cards) == 0 {
-				result.Ranks[ndx] = rank
-				group.Cards = cards
-			} else {
-				// 计算牌型
-				formCards, rank, ok := findCardRank(nil, group.Cards, num)
-				base.LogInfo(formCards, rank, ok)
-				if !ok {
-					base.LogError("failed to find card rank. group.Cards=", group.Cards)
-					rank = msg.CardRank_High_Card
-				}
-				result.Ranks[ndx] = rank
-				group.Cards = formCards
+				SeatId:     seatID,
+				CardGroups: cardGroups,
+				Ranks:      ranks,
+				Autowin:    false,
+				Uid:        player.uid,
 			}
 		}
 	}
+
+	bankerResult := obj.result[0]
 
 	// 当前没有检测牌型乌龙
 	for _, result := range obj.result {

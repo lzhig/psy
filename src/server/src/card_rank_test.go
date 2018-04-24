@@ -305,3 +305,28 @@ func Test_findCardRank(t *testing.T) {
 		})
 	}
 }
+
+func Test_find(t *testing.T) {
+	f := func(cards []uint32, card uint32) int {
+		low := 0
+		high := len(cards) - 1
+		for low <= high {
+			median := (low + high) / 2
+			if cards[median] > card {
+				low = median + 1
+			} else {
+				high = median - 1
+			}
+		}
+
+		if low == len(cards) || cards[low] != card {
+			return -1
+		}
+
+		return low
+	}
+
+	cards := []uint32{9, 8, 7, 6, 5, 4, 3, 2, 1}
+	card := uint32(4)
+	fmt.Println(f(cards, card))
+}
