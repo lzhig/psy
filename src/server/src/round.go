@@ -312,7 +312,7 @@ func (obj *Round) switchGameState(state msg.GameState) {
 			resultsToDB.Results[i] = v
 			i++
 		}
-		base.LogInfo(notify)
+		//base.LogInfo(notify)
 		obj.room.notifyAll(notify)
 
 		// save to db
@@ -424,7 +424,7 @@ func (obj *Round) autoCombine(already []*msg.CardGroup, leftCards []uint32) ([]*
 
 		formCards, rank, ok := findCardRank(leftCards, groupCards, num)
 		if !ok {
-			base.LogError("failed to find card rank. left cards=", leftCards, ", groupCards=", groupCards, ", num:", num, ", ndx:", ndx)
+			base.LogError("failed to find card rank. left cards=", leftCards, ", groupCards=", groupCards, ", num:", num, ", ndx:", ndx, ", room_id:", obj.room.roomID)
 		} else {
 			// 移去用过的牌
 			pos := 0

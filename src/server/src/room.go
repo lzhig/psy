@@ -298,6 +298,11 @@ func (obj *Room) handleEventRelease(args []interface{}) {
 	c <- false
 }
 
+func (obj *Room) Close(wait bool) {
+	base.LogInfo("room_id:", obj.roomID, " closed.")
+	obj.EventSystem.Close(wait)
+}
+
 func (obj *Room) handleEventReleaseTimer(args []interface{}) {
 	// 如果没有玩家，则释放房间
 	base.LogInfo("handleEventReleaseTimer, room_id:", obj.roomID, ", players:", len(obj.players), ", released:", obj.released)
@@ -987,7 +992,7 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 		var leftCards []uint32
 		if len(cards) != len(cardsUsed) {
 			// 补牌
-			leftCards := make([]uint32, len(cards)-len(cardsUsed))
+			leftCards = make([]uint32, len(cards)-len(cardsUsed))
 			i := 0
 			for _, card := range cards {
 				if _, ok := cardsUsed[card]; !ok {
@@ -1033,7 +1038,11 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 	// 如果全部完成组牌，则进入下一阶段
 	if obj.round.isAllCombine() {
 		if obj.round.stopStateTimeout() {
-			obj.round.switchGameState(msg.GameState_Show)
+			if obj.round.state == msg.GameState_Combine {
+				obj.round.switchGameState(msg.GameState_Confirm_Combine)
+			} else if obj.round.state == msg.GameState_Confirm_Combine {
+				obj.round.switchGameState(msg.GameState_Show)
+			}
 		}
 	}
 }

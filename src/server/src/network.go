@@ -68,7 +68,7 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 }
 
 func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interface{}) {
-	defer debug("exit NetworkEngine handleConnection goroutine")
+	//defer debug("exit NetworkEngine handleConnection goroutine")
 	if args == nil || len(args) == 0 {
 		base.LogError("[NetworkEngine][handleConnection] invalid args")
 		return
