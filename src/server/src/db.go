@@ -476,8 +476,9 @@ func (obj *mysqlDB) GetCareerWinLoseData(uid uint32, start, end int64) ([]int, e
 	return r, nil
 }
 
-func (obj *mysqlDB) GetCareerRooms(uid uint32, start, end int64) ([]*msg.CareerRoomRecord, error) {
-	rows, err := obj.db.Query("SELECT a.`room_id`,a.`name`,a.`hands`,a.`played_hands`,a.`is_share`,a.`min_bet`,a.`max_bet`,a.`create_time`,a.`close_time` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=? order by a.create_time desc", start, end, uid)
+func (obj *mysqlDB) GetCareerRooms(uid uint32, start, end int64, pos uint32, num uint32) ([]*msg.CareerRoomRecord, error) {
+	rows, err := obj.db.Query("SELECT a.`room_id`,a.`name`,a.`hands`,a.`played_hands`,a.`is_share`,a.`min_bet`,a.`max_bet`,a.`create_time`,a.`close_time` FROM room_records AS a, scoreboard AS b WHERE a.`room_id`=b.`roomid` AND a.create_time >= ? AND a.create_time < ? AND b.uid=? order by a.create_time desc limit ?,?",
+		start, end, uid, pos, num)
 	if err != nil {
 		return nil, err
 	}

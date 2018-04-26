@@ -25,9 +25,10 @@
         "max_players":20,
         "max_bet_rate":20,
         "states_countdown":[0, 2000, 2000, 2000, 10000, 2000,2000, 2000, 0],
-        "scoreboard_count_per_time":10,
+        "scoreboard_count_per_time":30,
         "kick_no_bet_for_hands": 3,
-        "release_timeout_sec": 1
+        "release_timeout_sec": 1,
+        "career_room_record_count_per_time":10
     },
     "user":{
         "facebook_avatar_type":"normal"

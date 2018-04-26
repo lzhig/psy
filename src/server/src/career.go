@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"time"
 
 	"./msg"
@@ -109,11 +110,17 @@ func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 	uid := p.userconn.user.uid
 
 	req := p.p.CareerRoomRecordsReq
+
+	if req.Count == 0 {
+		return
+	}
+
 	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
 	y, m, d := time.Now().AddDate(0, 0, 1).Date()
 	end := t.AddDate(y-1, int(m)-1, d-1)
 	begin := end.AddDate(0, 0, -int(req.Days))
-	r, err := db.GetCareerRooms(uid, begin.Unix(), end.Unix())
+	num := uint32(math.Min(float64(req.Count), float64(gApp.config.Room.CareerRoomRecordCountPerTime)))
+	r, err := db.GetCareerRooms(uid, begin.Unix(), end.Unix(), req.Pos, num)
 	if err != nil {
 		rsp.CareerRoomRecordsRsp.Ret = msg.ErrorID_DB_Error
 		return

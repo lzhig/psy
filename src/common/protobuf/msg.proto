@@ -643,6 +643,8 @@ message CareerWinLoseDataItem {
 
 message CareerRoomRecordsReq {
     uint32 days = 1;
+    uint32 pos = 2; // 起始位置，从0开始
+    uint32 count = 3; // 个数， 最大个数配置在服务器配置文件
 }
 
 message CareerRoomRecordsRsp {
