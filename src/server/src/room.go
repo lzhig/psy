@@ -473,12 +473,19 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 	}
 
 	//result
-	if len(obj.round.result) > 0 {
-		rsp.JoinRoomRsp.Room.Result = make([]*msg.SeatResult, len(obj.round.result))
-		i := 0
-		for _, v := range obj.round.result {
-			rsp.JoinRoomRsp.Room.Result[i] = v
-			i++
+	if seatID >= 0 && (obj.round.state == msg.GameState_Combine || obj.round.state == msg.GameState_Confirm_Combine) {
+		if result, ok := obj.round.result[uint32(seatID)]; ok {
+			rsp.JoinRoomRsp.Room.Result = make([]*msg.SeatResult, 1)
+			rsp.JoinRoomRsp.Room.Result[0] = result
+		}
+	} else {
+		if len(obj.round.result) > 0 {
+			rsp.JoinRoomRsp.Room.Result = make([]*msg.SeatResult, len(obj.round.result))
+			i := 0
+			for _, v := range obj.round.result {
+				rsp.JoinRoomRsp.Room.Result[i] = v
+				i++
+			}
 		}
 	}
 
