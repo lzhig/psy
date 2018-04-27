@@ -1021,7 +1021,7 @@ func (obj *Room) handleCombineReq(arg interface{}) {
 		}
 
 		// 自动摆牌
-		finalGroups, ranks = obj.round.autoCombine(nil, cards)
+		finalGroups, ranks = obj.round.autoCombine(nil, obj.round.handCards[seatID])
 	}
 	rspProto.CardGroups = finalGroups
 
