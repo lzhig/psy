@@ -18,8 +18,9 @@ type Round struct {
 	players        map[uint32]*RoomPlayer // 本局参与的玩家
 	handCards      map[uint32][]uint32    // 各个座位的发牌
 	//leftCards      map[uint32][]uint32        // 各个座位组牌剩下的牌
-	betChips map[uint32]uint32          // 各个座位的下注
-	result   map[uint32]*msg.SeatResult // 各个座位的结算
+	betChips    map[uint32]uint32          // 各个座位的下注
+	result      map[uint32]*msg.SeatResult // 各个座位的结算
+	closeResult map[uint32]bool            // 各个座位是否已经关闭结算
 
 	stateTimeout *time.Timer
 }
@@ -38,6 +39,7 @@ func (obj *Round) Begin() {
 	obj.betChips = make(map[uint32]uint32)
 	obj.handCards = make(map[uint32][]uint32)
 	obj.result = make(map[uint32]*msg.SeatResult)
+	obj.closeResult = make(map[uint32]bool)
 }
 
 func (obj *Round) bet(seatID uint32, chips uint32) bool {
@@ -60,6 +62,14 @@ func (obj *Round) isAllBet() bool {
 
 func (obj *Round) isAllCombine() bool {
 	return len(obj.result) == len(obj.handCards)
+}
+
+func (obj *Round) CloseResult(seatID uint32) {
+	obj.closeResult[seatID] = true
+}
+
+func (obj *Round) isAllCloseResult() bool {
+	return len(obj.closeResult) == len(obj.handCards)
 }
 
 // HandleTimeout function
@@ -372,6 +382,7 @@ func (obj *Round) deal() {
 	//base.LogInfo("[Round][deal]")
 	cards := dealer.deal()
 	//cards := []uint32{0, 1, 2, 3, 12, 5, 6, 7, 8, 9, 24, 13, 43, 47, 26, 27, 28, 29, 38, 31, 32, 33, 34, 35, 50, 39}
+	//cards := []uint32{12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 25, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51}
 
 	obj.handCards[0] = cards[0:gApp.config.Room.DealCardsNum]
 	base.LogInfo("seat 0:", obj.handCards[0])

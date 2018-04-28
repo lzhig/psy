@@ -109,7 +109,8 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 		msg.MessageID_Bet_Req,
 		msg.MessageID_Combine_Req,
 		msg.MessageID_GetScoreboard_Req,
-		msg.MessageID_GetRoundHistory_Req:
+		msg.MessageID_GetRoundHistory_Req,
+		msg.MessageID_CloseResult_Req:
 
 		if p.userconn.user.room != nil {
 			if !p.userconn.user.room.Send(roomEventNetworkPacket, []interface{}{p}) {

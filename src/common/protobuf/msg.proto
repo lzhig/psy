@@ -100,6 +100,9 @@ enum MessageID {
 
     GetPlayingRoom_Req = 53;
     GetPlayingRoom_Rsp = 54;
+
+    CloseResult_Req = 55;
+    CloseResult_Rsp = 56;
 }
 
 enum ErrorID {
@@ -168,6 +171,9 @@ enum ErrorID {
     SendDiamonds_Not_Enough_Diamonds = 230; // 钻石不够
     SendDiamonds_No_User = 231; // 用户不存在
     SendDiamonds_Cannot_Self = 232; // 不能自己给自己
+
+    CloseResult_Invalid_State = 240; // 非法的游戏状态
+    CloseResult_Room_Will_Be_Closed = 241; // 局数已满，房间将要关闭
 }
 
 message Protocol {
@@ -231,6 +237,9 @@ message Protocol {
     
     GetPlayingRoomReq getPlayingRoomReq = 55;
     GetPlayingRoomRsp getPlayingRoomRsp = 56;
+
+    CloseResultReq closeResultReq = 57;
+    CloseResultRsp closeResultRsp = 58;
 }
 
 
@@ -586,6 +595,14 @@ message GameStateNotify {
     repeated uint32 deal_seats = 4; // 发牌的座位
     repeated SeatResult result = 5; // 结算结果
     uint32 played_hands = 6; // ready和bet有效
+}
+
+// 关闭结算框
+message CloseResultReq{
+}
+
+message CloseResultRsp{
+    ErrorID ret = 1;
 }
 
 // game

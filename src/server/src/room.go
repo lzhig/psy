@@ -114,6 +114,7 @@ func (obj *Room) init(bLoadScoreboard bool) {
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Combine_Req, obj.handleCombineReq)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetScoreboard_Req, obj.handleGetScoreboardReq)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetRoundHistory_Req, obj.handleGetRoundHistoryReq)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CloseResult_Req, obj.handleCloseResultReq)
 
 	obj.players = make(map[uint32]*RoomPlayer)
 	obj.tablePlayers = make([]*RoomPlayer, gApp.config.Room.MaxTablePlayers, gApp.config.Room.MaxTablePlayers)
@@ -1108,13 +1109,6 @@ func (obj *Room) updateScoreboard(seatID uint32, score int32) {
 func (obj *Room) handleGetRoundHistoryReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	req := p.p.GetRoundHistoryReq
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_GetRoundHistory_Rsp,
@@ -1152,6 +1146,46 @@ func (obj *Room) handleGetRoundHistoryReq(arg interface{}) {
 			Result: result,
 		}
 		i++
+	}
+}
+
+func (obj *Room) handleCloseResultReq(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+
+	rsp := &msg.Protocol{
+		Msgid:          msg.MessageID_CloseResult_Rsp,
+		CloseResultRsp: &msg.CloseResultRsp{Ret: msg.ErrorID_Ok},
+	}
+	rspProto := rsp.CloseResultRsp
+	defer p.userconn.sendProtocol(rsp)
+
+	// check game state
+	if obj.round.state != msg.GameState_Result {
+		rspProto.Ret = msg.ErrorID_CloseResult_Invalid_State
+		return
+	}
+
+	// 是否参与本局
+	player := obj.players[p.userconn.user.uid]
+	if player == nil {
+		base.LogError("Cannot find this player in the room. uid:", p.userconn.user.uid, ". room:", obj.roomID)
+		rspProto.Ret = msg.ErrorID_Internal_Error
+		return
+	}
+	seatID := uint32(player.seatID)
+
+	// check if final round
+	if obj.playedHands >= obj.hands-1 {
+		rspProto.Ret = msg.ErrorID_CloseResult_Room_Will_Be_Closed
+		return
+	}
+
+	obj.round.CloseResult(seatID)
+
+	if obj.round.isAllCloseResult() {
+		if obj.round.state == msg.GameState_Result && obj.round.stopStateTimeout() {
+			obj.round.HandleTimeout(obj.round.state)
+		}
 	}
 }
 
