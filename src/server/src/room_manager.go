@@ -12,6 +12,7 @@ const (
 	roomManagerEventNetworkPacket base.EventID = iota
 	roomManagerEventCloseRoom
 	roomManagerEventReleaseRoom
+	roomManagerEventStopServer
 )
 
 // RoomManager type
@@ -24,6 +25,8 @@ type RoomManager struct {
 	roomsNumber   map[int]*Room
 	roomlocker    RoomLocker
 	roomCountdown RoomCountdown
+
+	enable bool // 是否停服
 }
 
 func (obj *RoomManager) init() error {
@@ -31,6 +34,7 @@ func (obj *RoomManager) init() error {
 	obj.SetEventHandler(roomManagerEventNetworkPacket, obj.handleEventNetworkPacket)
 	obj.SetEventHandler(roomManagerEventCloseRoom, obj.handleEventCloseRoom)
 	obj.SetEventHandler(roomManagerEventReleaseRoom, obj.handleEventReleaseRoom)
+	obj.SetEventHandler(roomManagerEventStopServer, obj.handleEventStopServer)
 
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
@@ -45,6 +49,9 @@ func (obj *RoomManager) init() error {
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_ListRooms_Req, obj.handleListRoomsReq)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CloseRoom_Req, obj.handleCloseRoomReq)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
+
+	obj.Enable(true)
+
 	return nil
 }
 
@@ -76,7 +83,30 @@ func (obj *RoomManager) handleEventReleaseRoom(args []interface{}) {
 		base.LogInfo("room_id:", room.roomID, " released")
 		obj.rooms.Delete(room.roomID)
 		delete(obj.roomsNumber, room.number)
+		onlineStatistic.RoomsChange(false)
 	}
+}
+
+// Enable 设置是否停服
+func (obj *RoomManager) Enable(enable bool) {
+	c := make(chan struct{})
+	obj.Send(roomManagerEventStopServer, []interface{}{c, enable})
+	<-c
+}
+
+func (obj *RoomManager) handleEventStopServer(args []interface{}) {
+	c := args[0].(chan struct{})
+	obj.enable = args[1].(bool)
+	var wg sync.WaitGroup
+	wg.Add(len(obj.roomsNumber))
+	for _, room := range obj.roomsNumber {
+		go func() {
+			room.Enable(false)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	c <- struct{}{}
 }
 
 func (obj *RoomManager) createRoom(number, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (*Room, error) {
@@ -111,6 +141,7 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 	obj.rooms.Store(roomID, room)
 	obj.roomsNumber[num] = room
 	room.init(bLoadScoreboard)
+	onlineStatistic.RoomsChange(true)
 	return room
 }
 
@@ -136,6 +167,7 @@ func (obj *RoomManager) CloseRoom(roomid uint32) bool {
 			base.LogInfo("room_id:", roomid, ", closed")
 			obj.rooms.Delete(roomid)
 			delete(obj.roomsNumber, room.number)
+			onlineStatistic.RoomsChange(false)
 		}
 
 		return closed

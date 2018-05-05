@@ -28,6 +28,7 @@ const (
 	roomEventGetSeatPlayers
 	roomEventRelease
 	roomEventReleaseTimer
+	roomEventEnable
 )
 
 const ()
@@ -89,6 +90,9 @@ type Room struct {
 	scoreboard Scoreboard // 积分榜
 
 	releaseTimer *time.Timer
+
+	enable     bool          // 是否停服
+	enableChan chan struct{} // 当停服完成后，进行通知
 }
 
 func (obj *Room) init(bLoadScoreboard bool) {
@@ -102,6 +106,7 @@ func (obj *Room) init(bLoadScoreboard bool) {
 	obj.SetEventHandler(roomEventGetSeatPlayers, obj.handleEventGetSeatPlayers)
 	obj.SetEventHandler(roomEventRelease, obj.handleEventRelease)
 	obj.SetEventHandler(roomEventReleaseTimer, obj.handleEventReleaseTimer)
+	obj.SetEventHandler(roomEventEnable, obj.handleEventEnable)
 
 	obj.networkPacketHandler.Init()
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Req, obj.handleJoinRoomReq)
@@ -130,6 +135,8 @@ func (obj *Room) init(bLoadScoreboard bool) {
 	}
 
 	obj.beginReleaseTimer()
+
+	obj.Enable(true)
 
 	// ctx, _ := gApp.CreateCancelContext()
 	// gApp.GoRoutine(ctx, obj.loop)
@@ -299,6 +306,7 @@ func (obj *Room) handleEventRelease(args []interface{}) {
 	c <- false
 }
 
+// Close 关闭房间
 func (obj *Room) Close(wait bool) {
 	base.LogInfo("room_id:", obj.roomID, " closed.")
 	obj.EventSystem.Close(wait)
@@ -317,9 +325,45 @@ func (obj *Room) handleEventReleaseTimer(args []interface{}) {
 	}
 }
 
-// func (obj *Room) notifyGetSeatPlayers(c chan []*msg.ListRoomPlayerInfo) {
-// 	obj.eventChan <- &roomEvent{event: roomEventGetSeatPlayers, args: []interface{}{c}}
-// }
+// Enable 设置停服
+func (obj *Room) Enable(enable bool) {
+	obj.enableChan = make(chan struct{})
+	obj.Send(roomEventEnable, []interface{}{enable})
+	<-obj.enableChan
+}
+
+func (obj *Room) handleEventEnable(args []interface{}) {
+	obj.enable = args[0].(bool)
+
+	base.LogInfo("room enable:", obj.enable, ", room_id:", obj.roomID)
+
+	if !obj.enable {
+		// 如果当前状态为ready，则立即关闭
+		if obj.round.state == msg.GameState_Ready || obj.round.state == msg.GameState_CloseRoom {
+			obj.kickAllPlayers()
+		}
+	} else {
+		obj.enableChan <- struct{}{}
+	}
+}
+
+func (obj *Room) kickAllPlayers() {
+	p := &msg.Protocol{
+		Msgid:      msg.MessageID_Kick_Notify,
+		KickNotify: &msg.KickNotify{Type: msg.KickType_StopServer},
+	}
+	for _, player := range obj.players {
+		if player.conn != nil {
+			player.sendProtocol(p)
+
+			// 5秒后断开连接
+			time.AfterFunc(time.Second*5, func() {
+				player.conn.Disconnect()
+			})
+		}
+	}
+	obj.enableChan <- struct{}{}
+}
 
 func (obj *Room) handleEventGetSeatPlayers(args []interface{}) {
 	c := args[0].(chan []*msg.ListRoomPlayerInfo)
@@ -382,12 +426,6 @@ func (obj *Room) notifyAll(p *msg.Protocol) {
 
 func (obj *Room) handleJoinRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
 
 	base.LogInfo("handleJoinRoomReq, room_id:", obj.roomID, ", uid:", p.userconn.user.uid)
 
@@ -396,6 +434,11 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
+
+	if !obj.enable {
+		rsp.JoinRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
 
 	if obj.released {
 		rsp.JoinRoomRsp.Ret = msg.ErrorID_JoinRoom_Released
@@ -529,13 +572,6 @@ func (obj *Room) handleJoinRoomReq(arg interface{}) {
 func (obj *Room) handleLeaveRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
@@ -581,19 +617,17 @@ func (obj *Room) handleLeaveRoomReq(arg interface{}) {
 func (obj *Room) handleSitDownReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_SitDown_Rsp,
 		SitDownRsp: &msg.SitDownRsp{Ret: msg.ErrorID_Ok},
 	}
 
 	defer p.userconn.sendProtocol(rsp)
+
+	if !obj.enable {
+		rsp.SitDownRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
 
 	rspProto := rsp.SitDownRsp
 	seatID := p.p.SitDownReq.SeatId
@@ -633,6 +667,7 @@ func (obj *Room) handleSitDownReq(arg interface{}) {
 	if player.seatID == -1 {
 		// 新入座
 		sitDownType = msg.SitDownType_Sit
+		onlineStatistic.PlayingPersonsChange(true)
 	} else {
 		// 换座
 		obj.tablePlayers[player.seatID] = nil
@@ -665,13 +700,6 @@ func (obj *Room) handleSitDownReq(arg interface{}) {
 func (obj *Room) handleStandUpReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	rsp := &msg.Protocol{
 		Msgid:      msg.MessageID_StandUp_Rsp,
 		StandUpRsp: &msg.StandUpRsp{Ret: msg.ErrorID_Ok},
@@ -700,6 +728,8 @@ func (obj *Room) handleStandUpReq(arg interface{}) {
 	}
 
 	p.userconn.sendProtocol(rsp)
+
+	onlineStatistic.PlayingPersonsChange(false)
 
 	// 通知房间其他人
 	obj.notifyOthers(p.userconn,
@@ -741,19 +771,16 @@ func (obj *Room) handleStandUpReq(arg interface{}) {
 func (obj *Room) handleAutoBankerReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_AutoBanker_Rsp,
 		AutoBankerRsp: &msg.AutoBankerRsp{Ret: msg.ErrorID_Ok},
 	}
-
 	defer p.userconn.sendProtocol(rsp)
+
+	if !obj.enable {
+		rsp.AutoBankerRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
 
 	// 检查状态
 	if obj.round.state != msg.GameState_Ready && obj.round.state != msg.GameState_Bet && obj.round.state != msg.GameState_Result {
@@ -773,13 +800,6 @@ func (obj *Room) handleAutoBankerReq(arg interface{}) {
 func (obj *Room) handleStartGameReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	handle := func() bool {
 		rsp := &msg.Protocol{
 			Msgid:        msg.MessageID_StartGame_Rsp,
@@ -787,6 +807,11 @@ func (obj *Room) handleStartGameReq(arg interface{}) {
 		}
 
 		defer p.userconn.sendProtocol(rsp)
+
+		if !obj.enable {
+			rsp.StartGameRsp.Ret = msg.ErrorID_Will_Stop_Server
+			return false
+		}
 
 		if obj.round.state != msg.GameState_Ready {
 			rsp.StartGameRsp.Ret = msg.ErrorID_StartGame_Not_Ready_State
@@ -831,13 +856,6 @@ func (obj *Room) handleStartGameReq(arg interface{}) {
 
 func (obj *Room) handleBetReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
 
 	req := p.p.BetReq
 	rsp := &msg.Protocol{
@@ -1198,6 +1216,7 @@ func (obj *Room) kickPlayer(uid uint32) {
 	if player.seatID >= 0 {
 		obj.round.unbet(uint32(player.seatID))
 		obj.tablePlayers[player.seatID] = nil
+		onlineStatistic.PlayingPersonsChange(false)
 	}
 
 	userManager.LeaveRoom(player.uid)

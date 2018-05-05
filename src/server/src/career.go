@@ -67,9 +67,8 @@ func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 
 	uid := p.userconn.user.uid
 
-	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
-	y, m, d := time.Now().AddDate(0, 0, 1).Date()
-	end := t.AddDate(y-1, int(m)-1, d-1)
+	now := time.Now()
+	end := base.GetTodayZeroClockTime(&now).AddDate(0, 0, 1) // 明天0点
 	rsp.CareerWinLoseDataRsp.Data = make([]*msg.CareerWinLoseDataItem, len(req.Days))
 	for ndx, days := range req.Days {
 		begin := end.AddDate(0, 0, -int(days))
@@ -115,9 +114,8 @@ func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 		return
 	}
 
-	t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
-	y, m, d := time.Now().AddDate(0, 0, 1).Date()
-	end := t.AddDate(y-1, int(m)-1, d-1)
+	now := time.Now()
+	end := base.GetTodayZeroClockTime(&now).AddDate(0, 0, 1) // 明天0点
 	begin := end.AddDate(0, 0, -int(req.Days))
 	num := uint32(math.Min(float64(req.Count), float64(gApp.config.Room.CareerRoomRecordCountPerTime)))
 	r, err := db.GetCareerRooms(uid, begin.Unix(), end.Unix(), req.Pos, num)

@@ -52,12 +52,13 @@ func (obj *protocolHandler) handle(p *msg.Protocol) {
 		log(obj.c, "received ", p)
 		f(p)
 	} else {
-		//log(obj.c, "cannot find handler for msg:", p)
+		log(obj.c, "cannot find handler for msg:", p)
 	}
 }
 
 func (obj *protocolHandler) handleLogin(p *msg.Protocol) {
 	if p.LoginRsp.Ret != msg.ErrorID_Ok {
+		time.Sleep(time.Second)
 		obj.c.sendLoginReq()
 		return
 	}

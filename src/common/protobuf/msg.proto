@@ -103,6 +103,11 @@ enum MessageID {
 
     CloseResult_Req = 55;
     CloseResult_Rsp = 56;
+
+    GetNotices_Req = 57;
+    GetNotices_Rsp = 58;
+
+    Notices_Notify = 59;
 }
 
 enum ErrorID {
@@ -111,8 +116,11 @@ enum ErrorID {
     DB_Error = 2; // db error
     Internal_Error = 3; // 内部错误
     System_Busy = 4; // 系统忙
+    Will_Stop_Server = 5; // 即将停服更新
 
     Login_Facebook_Failed = 90; // facebook登录失败
+    Login_Account_Banned = 91; // 账号被封
+    
 
     CreateRoom_Invalid_Room_Name = 100; // 非法的房间名称
     CreateRoom_Invalid_Min_Max_Bet = 101; // 非法的最小最大下注设置
@@ -240,6 +248,11 @@ message Protocol {
 
     CloseResultReq closeResultReq = 57;
     CloseResultRsp closeResultRsp = 58;
+
+    GetNoticesReq getNoticesReq = 59;
+    GetNoticesRsp getNoticesRsp = 60;
+
+    NoticesNotify noticesNotify = 61;
 }
 
 
@@ -319,8 +332,15 @@ message SendDiamondsRsp {
     ErrorID ret = 1;
 }
 
+enum KickType {
+    Login = 0; // 相同账号登录
+    StopServer = 1; // 停服
+    GM = 2; // gm操作
+}
+
 // kick, 同一账号登录
 message KickNotify {
+    KickType type = 1;
 }
 
 
@@ -680,4 +700,29 @@ message CareerRoomRecord {
     uint32 min_bet = 8; // min bet
     uint32 max_bet = 9; // max bet
     repeated ScoreboardItem items = 10; // 积分榜
+}
+
+message GetNoticesReq {
+}
+
+message GetNoticesRsp {
+    ErrorID ret = 1;
+    repeated Notice notices = 2; // 公告
+}
+
+enum NoticeType {
+    Horse_Lamp = 0; // 跑马灯
+    Pop_Up = 1; // 弹出框
+}
+
+message Notice {
+    uint32 id = 1; // 编号
+    uint32 begin = 2; // 开始时间
+    uint32 end = 3; // 结束时间
+    string content = 4; // 内容
+    NoticeType type = 5; // 公告显示方式
+}
+
+message NoticesNotify {
+    repeated Notice notices = 1; // 公告
 }

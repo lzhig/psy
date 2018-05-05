@@ -18,6 +18,7 @@ import (
 
 const (
 	loginEventNetworkPacket base.EventID = iota
+	loginEventDisableLogin
 )
 
 // LoginService 登录服务
@@ -28,17 +29,21 @@ type LoginService struct {
 	fbChecker            FacebookUserCheck
 
 	//limitation base.Limitation
+	enable bool // 是否允许登录
 }
 
 func (obj *LoginService) init() {
 	obj.EventSystem.Init(1024, true)
 	obj.SetEventHandler(loginEventNetworkPacket, obj.handleEventNetworkPacket)
+	obj.SetEventHandler(loginEventDisableLogin, obj.handleEventDisableLogin)
 
 	obj.networkPacketHandler.Init()
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Login_Req, obj.handleLogin)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetProfile_Req, obj.handleGetProfile)
 
 	obj.fbChecker.Init()
+
+	obj.EnableLogin(true)
 
 	//obj.limitation.Init(16)
 }
@@ -54,6 +59,19 @@ func (obj *LoginService) handleEventNetworkPacket(args []interface{}) {
 		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
 		p.userconn.Disconnect()
 	}
+}
+
+// EnableLogin 设置是否允许登录
+func (obj *LoginService) EnableLogin(enable bool) {
+	c := make(chan struct{})
+	obj.Send(loginEventDisableLogin, []interface{}{c, enable})
+	<-c
+}
+
+func (obj *LoginService) handleEventDisableLogin(args []interface{}) {
+	c := args[0].(chan struct{})
+	obj.enable = args[1].(bool)
+	c <- struct{}{}
 }
 
 func (obj *LoginService) handleLogin(arg interface{}) {
@@ -82,6 +100,12 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 		})
 	}
 
+	if !obj.enable {
+		errHandle(msg.ErrorID_Will_Stop_Server)
+		userconn.sendProtocol(rsp)
+		return
+	}
+
 	if p.LoginReq == nil {
 		errHandle(msg.ErrorID_Invalid_Params)
 		userconn.sendProtocol(rsp)
@@ -105,21 +129,23 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 
 			if uid == 0 {
 				// if doesn't exist, create account in db
-				u = userManager.CreateUser(user, userconn)
-				// uid, err = userManager.fbUserCreate(fbid, name, userconn)
-				if u == nil {
-					errHandle(msg.ErrorID_DB_Error)
-					userconn.sendProtocol(rsp)
-					return
-				}
+				u, err = userManager.CreateUser(user, userconn)
 			} else {
 				// login不再返回room number
-				u = userManager.LoadUser(user, uid, userconn)
-				if u == nil {
-					errHandle(msg.ErrorID_DB_Error)
-					userconn.sendProtocol(rsp)
-					return
-				}
+				u, err = userManager.LoadUser(user, uid, userconn)
+			}
+			if err == errUserBanned {
+				errHandle(msg.ErrorID_Login_Account_Banned)
+				userconn.sendProtocol(rsp)
+				// 5秒后断开连接
+				time.AfterFunc(time.Second, func() {
+					userconn.Disconnect()
+				})
+				return
+			} else if u == nil {
+				errHandle(msg.ErrorID_DB_Error)
+				userconn.sendProtocol(rsp)
+				return
 			}
 
 			userconn.user = u
@@ -129,6 +155,7 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 			rsp.LoginRsp.Name = u.name
 			rsp.LoginRsp.Avatar = u.avatar
 			userconn.sendProtocol(rsp)
+			onlineStatistic.OnlinePersonsChange(true)
 		}
 
 		if !gApp.config.Debug {
@@ -150,7 +177,6 @@ func (obj *LoginService) handleLogin(arg interface{}) {
 		//debug
 		user := &LocalUser{id: req.FbId, name: req.FbId}
 		createUser(user)
-
 	default:
 		errHandle(msg.ErrorID_Invalid_Params)
 		return
@@ -174,7 +200,7 @@ func (obj *LoginService) handleGetProfile(arg interface{}) {
 	}
 	defer userconn.sendProtocol(rsp)
 
-	name, signture, avatar, diamonds, err := db.GetUserProfile(userconn.user.uid)
+	name, signture, avatar, diamonds, _, err := db.GetUserProfile(userconn.user.uid)
 	if err != nil {
 		rsp.GetProfileRsp.Ret = msg.ErrorID_DB_Error
 		return

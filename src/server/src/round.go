@@ -126,7 +126,10 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 		case msg.GameState_Show:
 			obj.switchGameState(msg.GameState_Result)
 		case msg.GameState_Result:
-			if obj.room.playedHands < obj.room.hands-1 {
+			if !obj.room.enable {
+				// 停服
+				obj.room.kickAllPlayers()
+			} else if obj.room.playedHands < obj.room.hands-1 {
 
 				// check if closed
 				if obj.room.closed {
@@ -174,15 +177,7 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 				}
 
 				// check disconnected players
-				for _, player := range obj.room.tablePlayers {
-					if player == nil {
-						continue
-					}
-
-					if player.conn == nil {
-						obj.room.kickPlayer(player.uid)
-					}
-				}
+				obj.checkOffLinePlayers()
 
 				// check autobanker
 				//base.LogInfo("obj.room.autoBanker=", obj.room.autoBanker)
@@ -255,18 +250,14 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		}}
 	switch state {
 	case msg.GameState_Ready:
+		if !obj.room.enable {
+			obj.room.kickAllPlayers()
+			return
+		}
 		obj.Begin()
 
 		// check disconnected players
-		for _, player := range obj.room.tablePlayers {
-			if player == nil {
-				continue
-			}
-
-			if player.conn == nil {
-				obj.room.kickPlayer(player.uid)
-			}
-		}
+		obj.checkOffLinePlayers()
 
 		obj.room.beginReleaseTimer()
 
@@ -277,6 +268,11 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		obj.room.notifyAll(notify)
 
 	case msg.GameState_Bet:
+		if !obj.room.enable {
+			obj.room.kickAllPlayers()
+			return
+		}
+
 		notify.GameStateNotify.PlayedHands = obj.room.playedHands
 		obj.room.notifyAll(notify)
 
@@ -314,29 +310,30 @@ func (obj *Round) switchGameState(state msg.GameState) {
 		obj.calculateResult()
 
 		resultsToDB := &msg.DBResults{Results: make([]*msg.SeatResult, len(obj.result))}
-
+		uids := make([]uint32, len(obj.result))
 		notify.GameStateNotify.Result = make([]*msg.SeatResult, len(obj.handCards))
 		i := 0
 		for _, v := range obj.result {
 			notify.GameStateNotify.Result[i] = v
 			resultsToDB.Results[i] = v
+			uids[i] = v.Uid
 			i++
 		}
 		//base.LogInfo(notify)
 		obj.room.notifyAll(notify)
 
 		// save to db
-		go func() {
-			buf, err := proto.Marshal(resultsToDB)
-			if err != nil {
-				base.LogError("Failed to marshal results. reason:", err)
-				return
-			}
+		//go func(resultsToDB *msg.DBResults) {
+		buf, err := proto.Marshal(resultsToDB)
+		if err != nil {
+			base.LogError("Failed to marshal results. reason:", err)
+			return
+		}
 
-			if err := db.SaveRoundResult(obj.room.roomID, obj.room.playedHands, string(buf)); err != nil {
-				base.LogError("Failed to save results to db. reason:", err, "data:\n", buf)
-			}
-		}()
+		if err := db.SaveRoundResult(obj.room.roomID, obj.room.playedHands, uids, string(buf)); err != nil {
+			base.LogError("Failed to save results to db. reason:", err, "data:\n", buf)
+		}
+		//}(resultsToDB)
 	case msg.GameState_Result:
 		obj.room.notifyAll(notify)
 
@@ -351,11 +348,12 @@ func (obj *Round) switchGameState(state msg.GameState) {
 
 			// kick all players
 			for _, player := range obj.room.players {
-				if player.seatID >= 0 {
-					obj.room.tablePlayers[player.seatID] = nil
-				}
-				userManager.LeaveRoom(player.uid)
-				delete(obj.room.players, player.uid)
+				obj.room.kickPlayer(player.uid)
+				// if player.seatID >= 0 {
+				// 	obj.room.tablePlayers[player.seatID] = nil
+				// }
+				// userManager.LeaveRoom(player.uid)
+				// delete(obj.room.players, player.uid)
 			}
 		}
 
@@ -601,4 +599,16 @@ func (obj *Round) compareCardGroup(a, b *msg.SeatResult) ([]int32, int32) {
 		totalScore += s
 	}
 	return score, totalScore
+}
+
+func (obj *Round) checkOffLinePlayers() {
+	for _, player := range obj.room.tablePlayers {
+		if player == nil {
+			continue
+		}
+
+		if player.conn == nil {
+			obj.room.kickPlayer(player.uid)
+		}
+	}
 }

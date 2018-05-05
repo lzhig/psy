@@ -25,6 +25,11 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
+	if !obj.enable {
+		rsp.CreateRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
+
 	if req == nil {
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_Invalid_Params
 		return
@@ -63,7 +68,7 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	}
 
 	// 创建的房间达到上限
-	count, err := db.getRoomCreatedCount(p.userconn.user.uid)
+	count, err := db.getRoomsCountCreatedByUser(p.userconn.user.uid)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -114,6 +119,12 @@ func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
+	}
+
+	if !obj.enable {
+		rsp.JoinRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		p.userconn.sendProtocol(rsp)
+		return
 	}
 
 	reqRoomNum := roomNumberGenerator.encode(req.RoomNumber)
@@ -169,6 +180,12 @@ func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 		LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 
+	if !obj.enable {
+		rsp.LeaveRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		p.userconn.sendProtocol(rsp)
+		return
+	}
+
 	room := userManager.GetUserRoom(p.userconn.user.uid)
 	if room == nil {
 		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
@@ -194,6 +211,11 @@ func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 		ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
+
+	if !obj.enable {
+		rsp.ListRoomsRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
 
 	rooms, err := db.GetRoomsListJoined(p.userconn.user.uid)
 	if err != nil {
@@ -233,6 +255,11 @@ func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
+	if !obj.enable {
+		rsp.CloseRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
+
 	roomID := p.p.CloseRoomReq.RoomId
 	rsp.CloseRoomRsp.RoomId = roomID
 
@@ -245,18 +272,16 @@ func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 func (obj *RoomManager) handleGetPlayingRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	rsp := &msg.Protocol{
 		Msgid:             msg.MessageID_GetPlayingRoom_Rsp,
 		GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_Ok},
 	}
 	defer p.userconn.sendProtocol(rsp)
+
+	if !obj.enable {
+		rsp.GetPlayingRoomRsp.Ret = msg.ErrorID_Will_Stop_Server
+		return
+	}
 
 	if room := userManager.GetUserRoom(p.userconn.user.uid); room != nil {
 		rsp.GetPlayingRoomRsp.RoomNumber = roomNumberGenerator.decode(room.number)

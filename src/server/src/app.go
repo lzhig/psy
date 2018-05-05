@@ -25,6 +25,8 @@ var dealer = &Dealer{}
 var diamondsCenter = &DiamondsCenter{}
 var careerCenter = &CareerCenter{}
 var versionService = &VersionService{}
+var onlineStatistic = &OnlineStatistic{}
+var dateStatistic = &DateStatistic{}
 
 // App type
 type App struct {
@@ -62,6 +64,14 @@ func (obj *App) Init() error {
 		return err
 	}
 
+	if err := onlineStatistic.Init(); err != nil {
+		return err
+	}
+
+	if err := dateStatistic.Init(); err != nil {
+		return err
+	}
+
 	// init services
 	usedNum, err := db.getRoomNumberUsed()
 	if err != nil {
@@ -78,7 +88,9 @@ func (obj *App) Init() error {
 	}
 	careerCenter.Init()
 	diamondsCenter.init()
-	userManager.init()
+	if err := userManager.Init(); err != nil {
+		return err
+	}
 	loginService.init()
 
 	obj.network = &NetworkEngine{}
@@ -88,17 +100,6 @@ func (obj *App) Init() error {
 	obj.gm = &gameManager{}
 
 	base.LogInfo("init done.")
-
-	// fmt.Println(time.Now().Unix())
-	// t, err := time.ParseInLocation("2006-1-2 15:4:5", time.Now().Format("2006-1-2 15:4:5"), time.Local)
-	// fmt.Println(t.Unix(), err)
-	// t, err := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
-	// fmt.Println(t.Unix(), err)
-	// fmt.Println(t.Date())
-	// y, m, d := time.Now().AddDate(0, 0, 0).Date()
-	// t = t.AddDate(y-1, int(m)-1, d-1)
-	// fmt.Println(t.Format("2006-1-2 15:4:5"))
-	// fmt.Println(t.Unix())
 
 	// a := `{"error":{"message":"Unsupported get request. Object with ID '1637239499921854' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https:\/\/developers.facebook.com\/docs\/graph-api","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"BlfdHAICYcb"}}`
 	// b := checkResult{}
@@ -133,8 +134,10 @@ func (obj *App) Start() {
 
 // End function
 func (obj *App) End() {
+
 	diamondsCenter.Close(true)
 	careerCenter.Close(true)
 	roomManager.Close(true)
+	onlineStatistic.Close()
 	db.close()
 }

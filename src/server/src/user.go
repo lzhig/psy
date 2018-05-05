@@ -9,12 +9,21 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"./msg"
 	"github.com/lzhig/rapidgo/base"
 )
+
+var errUserBanned = errors.New("This account has been banned")
 
 // PlatformUser 平台用户接口
 type PlatformUser interface {
@@ -60,8 +69,9 @@ type User struct {
 
 	platformUser PlatformUser
 
-	conn *userConnection // 用户的连接
+	conn *userConnection // 用户当前的连接
 	room *Room           // 所在房间
+
 }
 
 const (
@@ -75,6 +85,11 @@ const (
 	userManagerEventGetRoom
 	//userManagerEventSetRoom
 	userManagerEventGetNameAvatar
+	userManagerEventKickUser
+	userManagerEventKickUsersNotInRoom
+	userManagerEventNotifyAllUsers
+	userManagerEventNetworkPacket
+	userManagerEventNoticeTimer
 )
 
 // UserManager type
@@ -83,10 +98,22 @@ type UserManager struct {
 
 	//users sync.Map
 	users map[uint32]*User
+
+	networkPacketHandler base.MessageHandlerImpl
+
+	notices *NoticesConfig
 }
 
-func (obj *UserManager) init() {
+// Init 初始化
+func (obj *UserManager) Init() error {
+	obj.notices = &NoticesConfig{}
+	if err := obj.notices.Load(gApp.config.Notice.File); err != nil {
+		return err
+	}
+	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
+
 	obj.EventSystem.Init(1024, true)
+	obj.SetEventHandler(userManagerEventNetworkPacket, obj.handleEventNetworkPacket)
 	obj.EventSystem.SetEventHandler(userManagerEventCreateUser, obj.handleEventCreateUser)
 	obj.EventSystem.SetEventHandler(userManagerEventLoadUser, obj.handleEventLoadUser)
 	obj.EventSystem.SetEventHandler(userManagerEventDisconnect, obj.handleEventDisconnect)
@@ -97,8 +124,43 @@ func (obj *UserManager) init() {
 	obj.EventSystem.SetEventHandler(userManagerEventGetRoom, obj.handleEventGetRoom)
 	//obj.EventSystem.SetEventHandler(userManagerEventSetRoom, obj.handleEventSetRoom)
 	obj.EventSystem.SetEventHandler(userManagerEventGetNameAvatar, obj.handleEventGetNameAvatar)
+	obj.EventSystem.SetEventHandler(userManagerEventKickUser, obj.handleEventKickUser)
+	obj.EventSystem.SetEventHandler(userManagerEventKickUsersNotInRoom, obj.handleEventKickUsersNotInRoom)
+	obj.EventSystem.SetEventHandler(userManagerEventNotifyAllUsers, obj.handleEventNotifyAllUsers)
+	obj.EventSystem.SetEventHandler(userManagerEventNoticeTimer, obj.handleEventNoticeTimer)
 
 	obj.users = make(map[uint32]*User)
+
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetNotices_Req, obj.handleGetNotices)
+	return nil
+}
+
+func (obj *UserManager) handleEventNetworkPacket(args []interface{}) {
+	p := args[0].(*ProtocolConnection)
+	if p == nil {
+		base.LogError("args[0] isn't a ProtocolConnection object.")
+		return
+	}
+
+	if !obj.networkPacketHandler.Handle(p.p.Msgid, p) {
+		base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.p.Msgid)])
+		p.userconn.Disconnect()
+	}
+}
+
+func (obj *UserManager) handleGetNotices(arg interface{}) {
+	p := arg.(*ProtocolConnection)
+	userconn := p.userconn
+
+	rsp := &msg.Protocol{
+		Msgid: msg.MessageID_GetNotices_Rsp,
+		GetNoticesRsp: &msg.GetNoticesRsp{Ret: msg.ErrorID_Ok,
+			Notices: obj.notices.GetAvailableNotices(),
+		},
+	}
+
+	userconn.sendProtocol(rsp)
 }
 
 // func (obj *UserManager) fbUserExists(fbID, name string) (uint32, error) {
@@ -106,16 +168,17 @@ func (obj *UserManager) init() {
 // }
 
 // CreateUser 创建用户对象
-func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) *User {
-	userC := make(chan *User)
+func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
+	userC := make(chan []interface{})
 	obj.Send(userManagerEventCreateUser, []interface{}{pu, conn, userC})
-	return <-userC
+	ret := <-userC
+	return ret[0].(*User), ret[1].(error)
 }
 
 func (obj *UserManager) handleEventCreateUser(args []interface{}) {
 	pu := args[0].(PlatformUser)
 	conn := args[1].(*userConnection)
-	userC := args[2].(chan *User)
+	userC := args[2].(chan []interface{})
 	uid, err := db.CreateUser(pu.GetName(), pu.GetAvatarURL(), diamondsCenter.freeDiamonds.GetFreeDiamondsWhenRegister(), pu.GetPlatformID())
 	if err != nil {
 		userC <- nil
@@ -129,10 +192,10 @@ func (obj *UserManager) handleEventCreateUser(args []interface{}) {
 	user, err := obj.createUser(uid, conn)
 	if err == nil {
 		user.platformUser = pu
-		userC <- user
+		userC <- []interface{}{user, nil}
 		return
 	}
-	userC <- nil
+	userC <- []interface{}{nil, err}
 }
 
 // func (obj *UserManager) fbUserCreate(fbID, name string, conn *userConnection) (uint32, error) {
@@ -147,63 +210,119 @@ func (obj *UserManager) handleEventCreateUser(args []interface{}) {
 // 	return uid, nil
 // }
 
+// KickUser 踢离用户
+func (obj *UserManager) KickUser(uid uint32) error {
+	c := make(chan error)
+	obj.Send(userManagerEventKickUser, []interface{}{uid, c})
+	return <-c
+}
+
+func (obj *UserManager) handleEventKickUser(args []interface{}) {
+	uid := args[0].(uint32)
+	c := args[1].(chan error)
+	user, ok := obj.users[uid]
+	if !ok {
+		c <- fmt.Errorf("The user: %d not exist", uid)
+		return
+	}
+
+	obj.kickUser(user, msg.KickType_GM)
+	c <- nil
+}
+
+// KickUsersNotInRoom 踢离不在房间中的所有玩家
+func (obj *UserManager) KickUsersNotInRoom() {
+	c := make(chan struct{})
+	obj.Send(userManagerEventKickUsersNotInRoom, []interface{}{c})
+	<-c
+}
+
+func (obj *UserManager) handleEventKickUsersNotInRoom(args []interface{}) {
+	c := args[0].(chan struct{})
+
+	for _, user := range obj.users {
+		if user.room == nil {
+			obj.kickUser(user, msg.KickType_StopServer)
+		}
+	}
+	c <- struct{}{}
+}
+
+func (obj *UserManager) kickUser(user *User, t msg.KickType) {
+	if user.conn != nil {
+		// 发送被踢消息
+		p := &msg.Protocol{
+			Msgid:      msg.MessageID_Kick_Notify,
+			KickNotify: &msg.KickNotify{Type: t},
+		}
+		user.conn.sendProtocol(p)
+
+		if user.room != nil {
+			// 向房间发送此用户断线消息
+			user.room.Send(roomEventUserDisconnect, []interface{}{user.uid})
+		}
+
+		oldConn := user.conn
+		user.conn = nil
+
+		// 5秒后断开连接
+		time.AfterFunc(time.Second*5, func() {
+			oldConn.Disconnect()
+		})
+	}
+}
+
 // LoadUser 加载用户
-func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnection) *User {
-	userC := make(chan *User)
+func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnection) (*User, error) {
+	userC := make(chan []interface{})
 	obj.Send(userManagerEventLoadUser, []interface{}{pu, uid, conn, userC})
-	return <-userC
+	ret := <-userC
+	if ret[1] == nil {
+		return ret[0].(*User), nil
+	}
+	err := ret[1].(error)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (obj *UserManager) handleEventLoadUser(args []interface{}) {
 	pu := args[0].(PlatformUser)
 	uid := args[1].(uint32)
 	conn := args[2].(*userConnection)
-	userC := args[3].(chan *User)
+	userC := args[3].(chan []interface{})
 
 	// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
 	user, ok := obj.users[uid]
+	var err error
 	if ok {
-		if user.conn != nil {
-			// 发送被踢消息
-			p := &msg.Protocol{
-				Msgid:      msg.MessageID_Kick_Notify,
-				KickNotify: &msg.KickNotify{},
-			}
-			user.conn.sendProtocol(p)
-
-			if user.room != nil {
-				// 向房间发送此用户断线消息
-				user.room.Send(roomEventUserDisconnect, []interface{}{uid})
-			}
-
-			oldConn := user.conn
-
-			// 5秒后断开连接
-			time.AfterFunc(time.Second*5, func() {
-				oldConn.Disconnect()
-			})
-		}
+		obj.kickUser(user, msg.KickType_Login)
 
 		user.platformUser = pu
 		user.name = pu.GetName()
 	} else {
-		user = obj.loadUser(pu, uid, conn)
-		if user == nil {
-			userC <- nil
+		user, err = obj.loadUser(pu, uid, conn)
+		if err != nil {
+			userC <- []interface{}{nil, err}
 			return
 		}
 	}
 
 	user.conn = conn
 	db.UpdateName(uid, user.name)
-	userC <- user
+	userC <- []interface{}{user, err}
 }
 
 func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
 	diamondsCenter.freeDiamonds.GiveFreeDiamondsEveryDay(uid)
-	name, _, avatar, diamonds, err := db.GetUserProfile(uid)
+	name, _, avatar, diamonds, status, err := db.GetUserProfile(uid)
 	if err != nil {
 		return nil, err
+	}
+	// 账号被封
+	if status == 1 {
+		return nil, errUserBanned
 	}
 
 	user := &User{uid: uid, name: name, avatar: avatar, diamonds: diamonds, conn: conn}
@@ -211,17 +330,17 @@ func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, err
 	return user, nil
 }
 
-func (obj *UserManager) loadUser(pu PlatformUser, uid uint32, conn *userConnection) *User {
+func (obj *UserManager) loadUser(pu PlatformUser, uid uint32, conn *userConnection) (*User, error) {
 	user, err := obj.createUser(uid, conn)
 	if err == nil {
 		user.platformUser = pu
 		user.name = pu.GetName()
-		return user
+		return user, err
 	}
-	return nil
+	return nil, err
 }
 
-// GetUser 返回用户对象
+// GetUserNameAvatar 返回用户对象
 func (obj *UserManager) GetUserNameAvatar(uid uint32) (string, string, bool) {
 	ret := make(chan []interface{})
 	obj.Send(userManagerEventGetNameAvatar, []interface{}{uid, ret})
@@ -285,7 +404,7 @@ func (obj *UserManager) handleEventConsumeDiamonds(args []interface{}) {
 
 		user.diamonds -= diamonds
 
-		if err := db.saveUserDiamonds(uid, user.diamonds); err != nil {
+		if err := db.PayDiamonds(uid, 0, diamonds, 0); err != nil {
 			base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 		} else {
 			base.LogInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
@@ -320,7 +439,7 @@ func (obj *UserManager) handleEventUsersConsumeDiamonds(args []interface{}) {
 	defer func() {
 		if ret {
 			for _, user := range usersDone {
-				if err := db.saveUserDiamonds(user.uid, user.diamonds); err != nil {
+				if err := db.PayDiamonds(user.uid, 0, user.diamonds, 0); err != nil {
 					base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 				} else {
 					base.LogInfo("[UserManager] [consumeDiamonds] uid:", user.uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)
@@ -420,20 +539,233 @@ func (obj *UserManager) handleEventGetRoom(args []interface{}) {
 	return
 }
 
-// func (obj *UserManager) SetUserRoom(uid uint32, room *Room) bool {
-// 	ret := make(chan bool)
-// 	obj.Send(userManagerEventSetRoom, []interface{}{uid, room, ret})
-// 	return <-ret
-// }
+func (obj *UserManager) handleEventNoticeTimer(args []interface{}) {
+	noticeID := args[0].(uint32)
+	t := args[1].(uint32)
+	//ndx := args[2].(int)
 
-// func (obj *UserManager) handleEventSetRoom(args []interface{}) {
-// 	uid := args[0].(uint32)
-// 	room := args[1].(*Room)
-// 	ret := args[2].(chan bool)
-// 	if user, ok := obj.users[uid]; ok {
-// 		user.room = room
-// 		ret <- true
-// 	} else {
-// 		ret <- false
-// 	}
-// }
+	if t == 0 {
+		// 发送公告
+
+		notice := obj.notices.GetNotice(noticeID)
+		if notice == nil {
+			base.LogWarn("Cannot find the notice. notice id:", noticeID)
+		} else {
+			p := &msg.Protocol{
+				Msgid: msg.MessageID_Notices_Notify,
+				NoticesNotify: &msg.NoticesNotify{
+					Notices: []*msg.Notice{
+						&msg.Notice{
+							Id:      notice.ID,
+							Begin:   notice.beginTime,
+							End:     notice.endTime,
+							Content: notice.Content,
+							Type:    notice.Type,
+						},
+					},
+				},
+			}
+
+			for _, user := range obj.users {
+				user.conn.sendProtocol(p)
+			}
+		}
+	} else {
+		// 公告过期，删除
+		base.LogInfo("delete notice: ", noticeID)
+		obj.notices.DeleteNotice(noticeID)
+	}
+
+	//obj.notices.NextTimer(ndx)
+	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
+}
+
+// NotifyAllUsers 发送公告
+func (obj *UserManager) NotifyAllUsers() error {
+	c := make(chan error)
+	obj.Send(userManagerEventNotifyAllUsers, []interface{}{c})
+	return <-c
+}
+
+func (obj *UserManager) handleEventNotifyAllUsers(args []interface{}) {
+	c := args[0].(chan error)
+
+	// load notice
+	if err := obj.notices.Load(gApp.config.Notice.File); err != nil {
+		c <- err
+		return
+	}
+	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
+	c <- nil
+}
+
+// NoticeConfig 公告配置
+type NoticeConfig struct {
+	ID      uint32         `json:"id"`
+	Begin   string         `json:"begin"`
+	End     string         `json:"end"`
+	Content string         `json:"content"`
+	Type    msg.NoticeType `json:"type"`
+
+	beginTime uint32
+	endTime   uint32
+}
+
+// NoticesConfig 公告配置
+type NoticesConfig struct {
+	Config []*NoticeConfig `json:"notices"`
+
+	notices map[uint32]*NoticeConfig
+
+	timerTime []uint32
+	timer     *time.Timer
+}
+
+// GetNotice 返回公告
+func (obj *NoticesConfig) GetNotice(noticeID uint32) *NoticeConfig {
+	if notice, ok := obj.notices[noticeID]; ok {
+		return notice
+	}
+	return nil
+}
+
+// DeleteNotice 删除公告
+func (obj *NoticesConfig) DeleteNotice(noticeID uint32) {
+	delete(obj.notices, noticeID)
+}
+
+// NextTimer 更新到下一个定时
+func (obj *NoticesConfig) NextTimer(ndx int) {
+	if ndx <= len(obj.timerTime)-2 {
+		obj.timerTime = obj.timerTime[ndx+1:]
+	} else {
+		obj.timerTime = nil
+	}
+}
+
+// Load 读取配置文件
+func (obj *NoticesConfig) Load(filename string) error {
+	if obj.timer != nil {
+		obj.timer.Stop()
+	}
+
+	obj.notices = make(map[uint32]*NoticeConfig)
+
+	// load notice
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	r := bufio.NewReader(f)
+	data, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, obj)
+	if err != nil {
+		return err
+	}
+
+	obj.timerTime = make([]uint32, len(obj.Config)*2)
+	i := 0
+	// check format of date
+	for _, notice := range obj.Config {
+		begin, err := time.ParseInLocation("2006-1-2 15:4:5", notice.Begin, time.Local)
+		if err != nil {
+			base.LogError("Failed to parse begin time of notice. id:", notice.ID)
+			return err
+		}
+		notice.beginTime = uint32(begin.Unix())
+
+		end, err := time.ParseInLocation("2006-1-2 15:4:5", notice.End, time.Local)
+		if err != nil {
+			base.LogError("Failed to parse end time of notice. id:", notice.ID)
+			return err
+		}
+		notice.endTime = uint32(end.Unix())
+
+		base.LogInfo(notice)
+
+		obj.notices[notice.ID] = notice
+		obj.timerTime[i] = notice.ID * 2
+		obj.timerTime[i+1] = notice.ID*2 + 1
+		i = i + 2
+	}
+
+	sort.Slice(obj.timerTime, func(i, j int) bool {
+		id1 := obj.timerTime[i] / 2
+		id2 := obj.timerTime[j] / 2
+		var time1, time2 uint32
+		if obj.timerTime[i]%2 == 0 {
+			time1 = obj.notices[id1].beginTime
+		} else {
+			time1 = obj.notices[id1].endTime
+		}
+
+		if obj.timerTime[j]%2 == 0 {
+			time2 = obj.notices[id2].beginTime
+		} else {
+			time2 = obj.notices[id2].endTime
+		}
+
+		return time1 < time2
+	})
+
+	return nil
+}
+
+// BeginTicker 开始定时
+func (obj *NoticesConfig) BeginTicker(event *base.EventSystem, eventID base.EventID) {
+	if obj.timerTime == nil || len(obj.timerTime) == 0 {
+		return
+	}
+
+	now := uint32(time.Now().Unix())
+	var timerTime uint32
+	ndx := 0
+	var id uint32
+	var t uint32 // id*2+ (0 or 1) 0-begin time, 1-end time
+	for ndx, t = range obj.timerTime {
+		id = t / 2
+		if t%2 == 0 {
+			timerTime = obj.notices[id].beginTime
+		} else {
+			timerTime = obj.notices[id].endTime
+		}
+		if timerTime < now {
+			continue
+		}
+
+		break
+	}
+	obj.timerTime = obj.timerTime[ndx+1:]
+
+	if timerTime >= now {
+		base.LogInfo(timerTime-now, id, t%2, ndx)
+		obj.timer = time.AfterFunc(time.Duration(timerTime-now)*time.Second, func() {
+			event.Send(eventID, []interface{}{id, t % 2, ndx})
+		})
+	}
+}
+
+// GetAvailableNotices 返回当前有效的公告
+func (obj *NoticesConfig) GetAvailableNotices() []*msg.Notice {
+	now := uint32(time.Now().Unix())
+
+	ret := make([]*msg.Notice, len(obj.notices))
+	for _, notice := range obj.notices {
+		if notice.beginTime <= now && notice.endTime > now {
+			ret = append(ret, &msg.Notice{
+				Id:      notice.ID,
+				Begin:   notice.beginTime,
+				End:     notice.endTime,
+				Content: notice.Content,
+				Type:    notice.Type,
+			})
+		}
+	}
+	return ret
+}

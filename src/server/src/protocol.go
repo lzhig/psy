@@ -85,7 +85,8 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 
 	switch msgid {
 	case msg.MessageID_Login_Req,
-		msg.MessageID_GetProfile_Req:
+		msg.MessageID_GetProfile_Req,
+		msg.MessageID_GetNotices_Req:
 
 		if !loginService.Send(loginEventNetworkPacket, []interface{}{p}) {
 			obj.handleBusy(msgid, p.userconn)

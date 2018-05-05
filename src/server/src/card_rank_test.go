@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 
 	"./msg"
+	"github.com/lzhig/rapidgo/base"
 )
 
 func Test_calculateCardRank(t *testing.T) {
@@ -329,4 +332,118 @@ func Test_find(t *testing.T) {
 	cards := []uint32{9, 8, 7, 6, 5, 4, 3, 2, 1}
 	card := uint32(4)
 	fmt.Println(f(cards, card))
+}
+
+func Test_time(tt *testing.T) {
+	a := time.Now()
+	fmt.Println("今天0点:", base.GetTodayZeroClockTime(&a).Unix())
+	fmt.Println("明天0点:", base.GetTodayZeroClockTime(&a).AddDate(0, 0, 1).Unix())
+	fmt.Println(time.Now().Unix())
+	t, err := time.ParseInLocation("2006-1-2 15:4:5", time.Now().Format("2006-1-2 15:4:5"), time.Local)
+	fmt.Println(t.Unix(), err)
+	t, err = time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
+	fmt.Println(t.Unix(), err)
+	fmt.Println(t.Date())
+	y, m, d := time.Now().AddDate(0, 0, 0).Date()
+	t = t.AddDate(y-1, int(m)-1, d-1)
+	fmt.Println(t.Format("2006-1-2 15:4:5"))
+	fmt.Println("今天0点：", t.Unix())
+	{
+		t, _ := time.ParseInLocation("2006-1-2 15:4:5", "0001-1-1 0:0:0", time.Local)
+		y, m, d := time.Now().AddDate(0, 0, 1).Date()
+		end := t.AddDate(y-1, int(m)-1, d-1)
+		fmt.Println("明天0点：", end.Unix())
+	}
+}
+
+func Test_time1(t *testing.T) {
+	now := time.Now()
+	year, mon, day := now.UTC().Date()
+	hour, min, sec := now.UTC().Clock()
+	zone, _ := now.UTC().Zone()
+	fmt.Printf("UTC 时间是 %d-%d-%d %02d:%02d:%02d %s\n",
+		year, mon, day, hour, min, sec, zone)
+
+	year, mon, day = now.Date()
+	hour, min, sec = now.Clock()
+	zone, _ = now.Zone()
+	fmt.Printf("本地时间是 %d-%d-%d %02d:%02d:%02d %s\n",
+		year, mon, day, hour, min, sec, zone)
+}
+
+func Test_defer(t *testing.T) {
+	a := true
+	defer func() {
+		if a {
+			fmt.Println("a is true")
+		} else {
+			fmt.Println("a is false")
+		}
+	}()
+	a = false
+}
+
+func Test_use_chan(t *testing.T) {
+	eventsystem := &struct {
+		base.EventSystem
+	}{}
+	eventsystem.Init(1024, true)
+
+	v := 0
+	eventsystem.SetEventHandler(1, func(args []interface{}) {
+		value := args[0].(int)
+		v = value
+		c := args[1].(chan struct{})
+		c <- struct{}{}
+	})
+	b := time.Now()
+	w := sync.WaitGroup{}
+	for i := 0; i < 10000; i++ {
+		w.Add(1)
+		go func() {
+			c := make(chan struct{})
+			for i := 0; i < 500; i++ {
+				eventsystem.Send(1, []interface{}{1, c})
+				<-c
+			}
+			w.Done()
+		}()
+	}
+	w.Wait()
+	fmt.Println(time.Now().Sub(b))
+}
+
+func Test_use_mutex(t *testing.T) {
+	m := sync.Mutex{}
+	v := 0
+	// getValue := func() int {
+	// 	m.Lock()
+	// 	defer m.Unlock()
+	// 	return 0
+	// }
+	setValue := func(value int) {
+		m.Lock()
+		defer m.Unlock()
+		v = value
+	}
+	b := time.Now()
+	w := sync.WaitGroup{}
+	for i := 0; i < 10000; i++ {
+		w.Add(1)
+		go func() {
+			for i := 0; i < 500; i++ {
+				//getValue()
+				setValue(1)
+			}
+			w.Done()
+		}()
+	}
+	w.Wait()
+	fmt.Println(time.Now().Sub(b))
+}
+
+func Test_Slice(t *testing.T) {
+	a := []uint32{1}
+	b := a[1:]
+	fmt.Println(a, b)
 }

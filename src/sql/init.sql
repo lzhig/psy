@@ -1,6 +1,6 @@
 /*
 SQLyog Ultimate v12.5.0 (64 bit)
-MySQL - 5.7.21-log : Database - pusoy
+MySQL - 8.0.11 : Database - pusoy
 *********************************************************************
 */
 
@@ -21,12 +21,13 @@ USE `pusoy`;
 DROP TABLE IF EXISTS `diamond_records`;
 
 CREATE TABLE `diamond_records` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `time` int(10) unsigned NOT NULL,
+  `timestamp` int(10) unsigned NOT NULL,
   `from` int(10) unsigned NOT NULL,
   `to` int(10) unsigned NOT NULL,
   `diamonds` int(10) unsigned NOT NULL,
-  PRIMARY KEY (`id`)
+  KEY `index_timestamp` (`timestamp`),
+  KEY `index_from` (`from`),
+  KEY `index_to` (`to`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `facebook_users` */
@@ -55,9 +56,42 @@ CREATE TABLE `free_diamonds` (
 DROP TABLE IF EXISTS `game_records`;
 
 CREATE TABLE `game_records` (
+  `round_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `roomid` int(10) unsigned NOT NULL COMMENT 'room id',
   `round` int(10) unsigned NOT NULL COMMENT 'round',
-  `result` blob NOT NULL COMMENT 'result'
+  `result` blob NOT NULL COMMENT 'result',
+  `timestamp` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`round_id`),
+  KEY `index_timestamp` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `game_statistics` */
+
+DROP TABLE IF EXISTS `game_statistics`;
+
+CREATE TABLE `game_statistics` (
+  `timestamp` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '每天0点时间戳',
+  `new_users` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '新增用户数',
+  `active_users` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '活跃用户数(>=5局)',
+  `play_users` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '游戏用户数',
+  `cost_diamonds_users` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '消耗钻石用户数',
+  `create_rooms` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '创建的房间数',
+  `played_rounds` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '游戏局数',
+  `cost_diamonds` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '消耗钻石数',
+  `offer_diamonds` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '钻石发放数',
+  PRIMARY KEY (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `online_statistics` */
+
+DROP TABLE IF EXISTS `online_statistics`;
+
+CREATE TABLE `online_statistics` (
+  `timestamp` int(10) unsigned NOT NULL,
+  `max_online_users` int(10) unsigned NOT NULL,
+  `max_playing_users` int(10) unsigned NOT NULL,
+  `max_playing_rooms` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `room_records` */
@@ -82,6 +116,16 @@ CREATE TABLE `room_records` (
   KEY `index_number_closed` (`number`,`closed`),
   KEY `index_owner_closed` (`owner_uid`,`closed`),
   KEY `index_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*Table structure for table `round_players` */
+
+DROP TABLE IF EXISTS `round_players`;
+
+CREATE TABLE `round_players` (
+  `round_id` int(10) unsigned NOT NULL,
+  `uid` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`round_id`,`uid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `scoreboard` */
@@ -109,7 +153,9 @@ CREATE TABLE `users` (
   `platform` int(10) unsigned NOT NULL COMMENT '0-fb',
   `regtime` int(11) unsigned NOT NULL COMMENT '注册时间',
   `logintime` int(11) unsigned NOT NULL COMMENT '登录时间',
-  PRIMARY KEY (`uid`)
+  `status` int(10) unsigned NOT NULL COMMENT '0-正常,1-封号',
+  PRIMARY KEY (`uid`),
+  KEY `index_regtime` (`regtime`) COMMENT '注册时间'
 ) ENGINE=InnoDB AUTO_INCREMENT=100000 DEFAULT CHARSET=utf8;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

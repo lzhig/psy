@@ -76,6 +76,7 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 	userconn := args[0].(*userConnection)
 	defer func() {
 		if userconn.user != nil {
+			onlineStatistic.OnlinePersonsChange(false)
 			base.LogInfo("disconnected. uid:", userconn.user.uid)
 			userManager.userDisconnect(userconn.user.uid, userconn)
 			//userconn.user = nil
@@ -86,7 +87,8 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 		case <-ctx.Done():
 			return
 		case data, ok := <-userconn.conn.ReceiveDataChan():
-			if !ok {
+			// 连接被关闭
+			if !ok || (userconn.user != nil && userconn.user.conn != userconn) {
 				return
 			}
 
