@@ -66,6 +66,9 @@ var busyMessageHandlers = map[msg.MessageID]func(conn *userConnection){
 	msg.MessageID_CareerRoomRecords_Req: func(conn *userConnection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CareerRoomRecords_Rsp, CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_System_Busy}})
 	},
+	msg.MessageID_GetNotices_Req: func(conn *userConnection) {
+		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetNotices_Rsp, GetNoticesRsp: &msg.GetNoticesRsp{Ret: msg.ErrorID_System_Busy}})
+	},
 }
 
 func (obj *NetworkEngine) handleBusy(msgid msg.MessageID, conn *userConnection) {
@@ -85,10 +88,14 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 
 	switch msgid {
 	case msg.MessageID_Login_Req,
-		msg.MessageID_GetProfile_Req,
-		msg.MessageID_GetNotices_Req:
+		msg.MessageID_GetProfile_Req:
 
 		if !loginService.Send(loginEventNetworkPacket, []interface{}{p}) {
+			obj.handleBusy(msgid, p.userconn)
+		}
+
+	case msg.MessageID_GetNotices_Req:
+		if !userManager.Send(userManagerEventNetworkPacket, []interface{}{p}) {
 			obj.handleBusy(msgid, p.userconn)
 		}
 

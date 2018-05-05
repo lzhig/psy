@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sort"
 	"sync"
 	"time"
 
@@ -114,20 +113,20 @@ func (obj *UserManager) Init() error {
 
 	obj.EventSystem.Init(1024, true)
 	obj.SetEventHandler(userManagerEventNetworkPacket, obj.handleEventNetworkPacket)
-	obj.EventSystem.SetEventHandler(userManagerEventCreateUser, obj.handleEventCreateUser)
-	obj.EventSystem.SetEventHandler(userManagerEventLoadUser, obj.handleEventLoadUser)
-	obj.EventSystem.SetEventHandler(userManagerEventDisconnect, obj.handleEventDisconnect)
-	obj.EventSystem.SetEventHandler(userManagerEventConsumeDiamonds, obj.handleEventConsumeDiamonds)
-	obj.EventSystem.SetEventHandler(userManagerEventUsersConsumeDiamonds, obj.handleEventUsersConsumeDiamonds)
-	obj.EventSystem.SetEventHandler(userManagerEventEnterRoom, obj.handleEventEnterRoom)
-	obj.EventSystem.SetEventHandler(userManagerEventLeaveRoom, obj.handleEventLeaveRoom)
-	obj.EventSystem.SetEventHandler(userManagerEventGetRoom, obj.handleEventGetRoom)
-	//obj.EventSystem.SetEventHandler(userManagerEventSetRoom, obj.handleEventSetRoom)
-	obj.EventSystem.SetEventHandler(userManagerEventGetNameAvatar, obj.handleEventGetNameAvatar)
-	obj.EventSystem.SetEventHandler(userManagerEventKickUser, obj.handleEventKickUser)
-	obj.EventSystem.SetEventHandler(userManagerEventKickUsersNotInRoom, obj.handleEventKickUsersNotInRoom)
-	obj.EventSystem.SetEventHandler(userManagerEventNotifyAllUsers, obj.handleEventNotifyAllUsers)
-	obj.EventSystem.SetEventHandler(userManagerEventNoticeTimer, obj.handleEventNoticeTimer)
+	obj.SetEventHandler(userManagerEventCreateUser, obj.handleEventCreateUser)
+	obj.SetEventHandler(userManagerEventLoadUser, obj.handleEventLoadUser)
+	obj.SetEventHandler(userManagerEventDisconnect, obj.handleEventDisconnect)
+	obj.SetEventHandler(userManagerEventConsumeDiamonds, obj.handleEventConsumeDiamonds)
+	obj.SetEventHandler(userManagerEventUsersConsumeDiamonds, obj.handleEventUsersConsumeDiamonds)
+	obj.SetEventHandler(userManagerEventEnterRoom, obj.handleEventEnterRoom)
+	obj.SetEventHandler(userManagerEventLeaveRoom, obj.handleEventLeaveRoom)
+	obj.SetEventHandler(userManagerEventGetRoom, obj.handleEventGetRoom)
+	//obj.SetEventHandler(userManagerEventSetRoom, obj.handleEventSetRoom)
+	obj.SetEventHandler(userManagerEventGetNameAvatar, obj.handleEventGetNameAvatar)
+	obj.SetEventHandler(userManagerEventKickUser, obj.handleEventKickUser)
+	obj.SetEventHandler(userManagerEventKickUsersNotInRoom, obj.handleEventKickUsersNotInRoom)
+	obj.SetEventHandler(userManagerEventNotifyAllUsers, obj.handleEventNotifyAllUsers)
+	obj.SetEventHandler(userManagerEventNoticeTimer, obj.handleEventNoticeTimer)
 
 	obj.users = make(map[uint32]*User)
 
@@ -156,7 +155,7 @@ func (obj *UserManager) handleGetNotices(arg interface{}) {
 	rsp := &msg.Protocol{
 		Msgid: msg.MessageID_GetNotices_Rsp,
 		GetNoticesRsp: &msg.GetNoticesRsp{Ret: msg.ErrorID_Ok,
-			Notices: obj.notices.GetAvailableNotices(),
+			Notices: obj.notices.GetAvailableNotices(false),
 		},
 	}
 
@@ -541,42 +540,32 @@ func (obj *UserManager) handleEventGetRoom(args []interface{}) {
 
 func (obj *UserManager) handleEventNoticeTimer(args []interface{}) {
 	noticeID := args[0].(uint32)
-	t := args[1].(uint32)
-	//ndx := args[2].(int)
 
-	if t == 0 {
-		// 发送公告
-
-		notice := obj.notices.GetNotice(noticeID)
-		if notice == nil {
-			base.LogWarn("Cannot find the notice. notice id:", noticeID)
-		} else {
-			p := &msg.Protocol{
-				Msgid: msg.MessageID_Notices_Notify,
-				NoticesNotify: &msg.NoticesNotify{
-					Notices: []*msg.Notice{
-						&msg.Notice{
-							Id:      notice.ID,
-							Begin:   notice.beginTime,
-							End:     notice.endTime,
-							Content: notice.Content,
-							Type:    notice.Type,
-						},
+	notice := obj.notices.GetNotice(noticeID)
+	if notice == nil {
+		base.LogWarn("Cannot find the notice. notice id:", noticeID)
+	} else {
+		notice.notified = true
+		p := &msg.Protocol{
+			Msgid: msg.MessageID_Notices_Notify,
+			NoticesNotify: &msg.NoticesNotify{
+				Notices: []*msg.Notice{
+					&msg.Notice{
+						Id:      notice.ID,
+						Begin:   notice.beginTime,
+						End:     notice.endTime,
+						Content: notice.Content,
+						Type:    notice.Type,
 					},
 				},
-			}
-
-			for _, user := range obj.users {
-				user.conn.sendProtocol(p)
-			}
+			},
 		}
-	} else {
-		// 公告过期，删除
-		base.LogInfo("delete notice: ", noticeID)
-		obj.notices.DeleteNotice(noticeID)
+
+		for _, user := range obj.users {
+			user.conn.sendProtocol(p)
+		}
 	}
 
-	//obj.notices.NextTimer(ndx)
 	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
 }
 
@@ -587,6 +576,7 @@ func (obj *UserManager) NotifyAllUsers() error {
 	return <-c
 }
 
+// 更新公告时，先通知当前时间内的公告，然后定时一个离当前时间最近的公告
 func (obj *UserManager) handleEventNotifyAllUsers(args []interface{}) {
 	c := args[0].(chan error)
 
@@ -595,6 +585,19 @@ func (obj *UserManager) handleEventNotifyAllUsers(args []interface{}) {
 		c <- err
 		return
 	}
+
+	notices := obj.notices.GetAvailableNotices(true)
+	p := &msg.Protocol{
+		Msgid: msg.MessageID_Notices_Notify,
+		NoticesNotify: &msg.NoticesNotify{
+			Notices: notices,
+		},
+	}
+
+	for _, user := range obj.users {
+		user.conn.sendProtocol(p)
+	}
+
 	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
 	c <- nil
 }
@@ -609,6 +612,7 @@ type NoticeConfig struct {
 
 	beginTime uint32
 	endTime   uint32
+	notified  bool
 }
 
 // NoticesConfig 公告配置
@@ -617,8 +621,7 @@ type NoticesConfig struct {
 
 	notices map[uint32]*NoticeConfig
 
-	timerTime []uint32
-	timer     *time.Timer
+	timer *time.Timer
 }
 
 // GetNotice 返回公告
@@ -632,15 +635,6 @@ func (obj *NoticesConfig) GetNotice(noticeID uint32) *NoticeConfig {
 // DeleteNotice 删除公告
 func (obj *NoticesConfig) DeleteNotice(noticeID uint32) {
 	delete(obj.notices, noticeID)
-}
-
-// NextTimer 更新到下一个定时
-func (obj *NoticesConfig) NextTimer(ndx int) {
-	if ndx <= len(obj.timerTime)-2 {
-		obj.timerTime = obj.timerTime[ndx+1:]
-	} else {
-		obj.timerTime = nil
-	}
 }
 
 // Load 读取配置文件
@@ -669,8 +663,6 @@ func (obj *NoticesConfig) Load(filename string) error {
 		return err
 	}
 
-	obj.timerTime = make([]uint32, len(obj.Config)*2)
-	i := 0
 	// check format of date
 	for _, notice := range obj.Config {
 		begin, err := time.ParseInLocation("2006-1-2 15:4:5", notice.Begin, time.Local)
@@ -690,72 +682,43 @@ func (obj *NoticesConfig) Load(filename string) error {
 		base.LogInfo(notice)
 
 		obj.notices[notice.ID] = notice
-		obj.timerTime[i] = notice.ID * 2
-		obj.timerTime[i+1] = notice.ID*2 + 1
-		i = i + 2
 	}
-
-	sort.Slice(obj.timerTime, func(i, j int) bool {
-		id1 := obj.timerTime[i] / 2
-		id2 := obj.timerTime[j] / 2
-		var time1, time2 uint32
-		if obj.timerTime[i]%2 == 0 {
-			time1 = obj.notices[id1].beginTime
-		} else {
-			time1 = obj.notices[id1].endTime
-		}
-
-		if obj.timerTime[j]%2 == 0 {
-			time2 = obj.notices[id2].beginTime
-		} else {
-			time2 = obj.notices[id2].endTime
-		}
-
-		return time1 < time2
-	})
 
 	return nil
 }
 
 // BeginTicker 开始定时
 func (obj *NoticesConfig) BeginTicker(event *base.EventSystem, eventID base.EventID) {
-	if obj.timerTime == nil || len(obj.timerTime) == 0 {
+	if len(obj.notices) == 0 {
 		return
 	}
-
 	now := uint32(time.Now().Unix())
-	var timerTime uint32
-	ndx := 0
-	var id uint32
-	var t uint32 // id*2+ (0 or 1) 0-begin time, 1-end time
-	for ndx, t = range obj.timerTime {
-		id = t / 2
-		if t%2 == 0 {
-			timerTime = obj.notices[id].beginTime
-		} else {
-			timerTime = obj.notices[id].endTime
-		}
-		if timerTime < now {
+	// 查找离当前时间最近的公告
+
+	noticeID := uint32(0)
+	earlier := uint32(0)
+	for id, notice := range obj.notices {
+		if notice.beginTime < now || notice.notified {
 			continue
 		}
 
-		break
+		if earlier == 0 || earlier > notice.beginTime {
+			earlier = notice.beginTime
+			noticeID = id
+		}
 	}
-	obj.timerTime = obj.timerTime[ndx+1:]
 
-	if timerTime >= now {
-		base.LogInfo(timerTime-now, id, t%2, ndx)
-		obj.timer = time.AfterFunc(time.Duration(timerTime-now)*time.Second, func() {
-			event.Send(eventID, []interface{}{id, t % 2, ndx})
-		})
-	}
+	obj.timer = time.AfterFunc(time.Duration(earlier-now)*time.Second, func() {
+		event.Send(eventID, []interface{}{noticeID})
+	})
+
 }
 
 // GetAvailableNotices 返回当前有效的公告
-func (obj *NoticesConfig) GetAvailableNotices() []*msg.Notice {
+func (obj *NoticesConfig) GetAvailableNotices(isNotify bool) []*msg.Notice {
 	now := uint32(time.Now().Unix())
 
-	ret := make([]*msg.Notice, len(obj.notices))
+	ret := make([]*msg.Notice, 0, len(obj.notices))
 	for _, notice := range obj.notices {
 		if notice.beginTime <= now && notice.endTime > now {
 			ret = append(ret, &msg.Notice{
@@ -765,6 +728,9 @@ func (obj *NoticesConfig) GetAvailableNotices() []*msg.Notice {
 				Content: notice.Content,
 				Type:    notice.Type,
 			})
+			if isNotify {
+				notice.notified = true
+			}
 		}
 	}
 	return ret
