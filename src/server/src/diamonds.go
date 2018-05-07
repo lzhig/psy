@@ -77,6 +77,7 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 
 	diamondsWithFee := uint32(math.Ceil(float64(req.Diamonds) * (float64(1) + gApp.config.Diamonds.SendDiamondsFee)))
 	diamondsFee := diamondsWithFee - req.Diamonds
+	base.LogInfo("diamonds:", req.Diamonds, ", fee rate:", gApp.config.Diamonds.SendDiamondsFee, "Fee:", diamondsFee)
 
 	newDiamonds, err := db.PayDiamonds(p.userconn.user.uid, req.Uid, req.Diamonds, diamondsFee, obj.freeDiamonds.GetDiamondsKept())
 	if err == ErrorNotEnoughDiamonds {

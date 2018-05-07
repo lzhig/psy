@@ -460,7 +460,7 @@ func (obj *mysqlDB) GetRoomsListJoined(uid uint32) ([]*msg.ListRoomItem, error) 
 }
 
 func (obj *mysqlDB) GetDiamondRecords(uid uint32, begin, end int64) ([]*msg.DiamondsRecordsItem, error) {
-	rows, err := obj.db.Query("SELECT `timestamp`,`from`,`to`,diamonds FROM diamond_records WHERE `time`>=? and `time`<? and (`from`=? or `to`=?)  order by time desc", begin, end, uid, uid)
+	rows, err := obj.db.Query("SELECT `timestamp`,`from`,`to`,diamonds FROM diamond_records WHERE `timestamp`>=? and `timestamp`<? and ((`from`=? and `to`<>0) or (`from`<>0 and `to`=?))  order by `timestamp` desc", begin, end, uid, uid)
 	if err != nil {
 		return nil, err
 	}
