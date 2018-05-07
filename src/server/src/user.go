@@ -89,13 +89,13 @@ const (
 	userManagerEventNotifyAllUsers
 	userManagerEventNetworkPacket
 	userManagerEventNoticeTimer
+	userManagerEventGetUserConn
 )
 
 // UserManager type
 type UserManager struct {
 	base.EventSystem
 
-	//users sync.Map
 	users map[uint32]*User
 
 	networkPacketHandler base.MessageHandlerImpl
@@ -127,6 +127,7 @@ func (obj *UserManager) Init() error {
 	obj.SetEventHandler(userManagerEventKickUsersNotInRoom, obj.handleEventKickUsersNotInRoom)
 	obj.SetEventHandler(userManagerEventNotifyAllUsers, obj.handleEventNotifyAllUsers)
 	obj.SetEventHandler(userManagerEventNoticeTimer, obj.handleEventNoticeTimer)
+	obj.SetEventHandler(userManagerEventGetUserConn, obj.handleEventGetUserConn)
 
 	obj.users = make(map[uint32]*User)
 
@@ -165,6 +166,24 @@ func (obj *UserManager) handleGetNotices(arg interface{}) {
 // func (obj *UserManager) fbUserExists(fbID, name string) (uint32, error) {
 // 	return db.getUIDFacebook(fbID, name)
 // }
+
+// GetUserConn 获取用户连接
+func (obj *UserManager) GetUserConn(uid uint32) *userConnection {
+	c := make(chan *userConnection)
+	obj.Send(userManagerEventGetUserConn, []interface{}{uid, c})
+	return <-c
+}
+
+func (obj *UserManager) handleEventGetUserConn(args []interface{}) {
+	uid := args[0].(uint32)
+	c := args[1].(chan *userConnection)
+	user, ok := obj.users[uid]
+	if ok {
+		c <- user.conn
+	} else {
+		c <- nil
+	}
+}
 
 // CreateUser 创建用户对象
 func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
@@ -403,7 +422,7 @@ func (obj *UserManager) handleEventConsumeDiamonds(args []interface{}) {
 
 		user.diamonds -= diamonds
 
-		if err := db.PayDiamonds(uid, 0, diamonds, 0); err != nil {
+		if _, err := db.PayDiamonds(uid, 0, diamonds, 0, 0); err != nil {
 			base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 		} else {
 			base.LogInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
@@ -438,7 +457,7 @@ func (obj *UserManager) handleEventUsersConsumeDiamonds(args []interface{}) {
 	defer func() {
 		if ret {
 			for _, user := range usersDone {
-				if err := db.PayDiamonds(user.uid, 0, user.diamonds, 0); err != nil {
+				if _, err := db.PayDiamonds(user.uid, 0, user.diamonds, 0, 0); err != nil {
 					base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
 				} else {
 					base.LogInfo("[UserManager] [consumeDiamonds] uid:", user.uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)

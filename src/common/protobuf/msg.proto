@@ -19,6 +19,7 @@ enum MessageID {
     // 扣除钻石
     ConsumeDiamonds_Notify = 5; 
 
+
     // 加入房间
     JoinRoom_Req = 6;
     JoinRoom_Rsp = 7;
@@ -108,6 +109,9 @@ enum MessageID {
     GetNotices_Rsp = 58;
 
     Notices_Notify = 59;
+    
+    // 收到钻石
+    ReceiveDiamonds_Notify = 60;
 }
 
 enum ErrorID {
@@ -253,6 +257,8 @@ message Protocol {
     GetNoticesRsp getNoticesRsp = 60;
 
     NoticesNotify noticesNotify = 61;
+
+    ReceiveDiamondsNotify receiveDiamondsNotify = 62;
 }
 
 
@@ -330,6 +336,7 @@ message SendDiamondsReq {
 
 message SendDiamondsRsp {
     ErrorID ret = 1;
+    uint32 diamonds = 2;
 }
 
 enum KickType {
@@ -408,7 +415,11 @@ message CloseRoomRsp {
 
 // Consume Diamonds Notify
 message ConsumeDiamondsNotify {
-    uint32 diamonds = 1;
+    uint32 diamonds = 1; // 消费的钻石
+}
+
+message ReceiveDiamondsNotify {
+    uint32 diamonds = 1; // 接受到的钻石
 }
 
 // join room

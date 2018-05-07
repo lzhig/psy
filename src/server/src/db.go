@@ -189,12 +189,12 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 // ErrorNotEnoughDiamonds 错误
 var ErrorNotEnoughDiamonds = errors.New("diamonds are not enough")
 
-func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, keep uint32) error {
+func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, diamondsFee uint32, keep uint32) (uint32, error) {
 	success := false
 	tx, err := obj.db.Begin()
 	if err != nil {
 		base.LogError("PayDiamonds: failed to start a transaction, error:", err)
-		return err
+		return 0, err
 	}
 	defer func() {
 		if !success {
@@ -202,33 +202,41 @@ func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, keep uint32) error {
 		}
 	}()
 
-	result, err := tx.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds, from, diamonds+keep)
+	result, err := tx.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds+diamondsFee, from, diamonds+keep+diamondsFee)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if rows != 1 {
-		return ErrorNotEnoughDiamonds
+		return 0, ErrorNotEnoughDiamonds
 	}
 
 	_, err = tx.Exec("update users set diamonds=diamonds+? where uid=?", diamonds, to)
 	if err != nil {
 		base.LogError("failed to update db. error:", err)
-		return err
+		return 0, err
 	}
 
 	_, err = tx.Exec("insert into diamond_records (`timestamp`,`from`,`to`,diamonds) values(?,?,?,?)", time.Now().Unix(), from, to, diamonds)
 	if err != nil {
 		base.LogError("failed to update db. error:", err)
-		return err
+		return 0, err
 	}
+
+	var newDiamonds uint32
+	err = tx.QueryRow("select diamonds from users where uid=?", from).Scan(&newDiamonds)
+	if err != nil {
+		base.LogError("failed to query diamonds. error:", err)
+		return 0, err
+	}
+
 	success = true
 	tx.Commit()
 
-	return err
+	return newDiamonds, err
 }
 
 func (obj *mysqlDB) createRoom(num int, name string, uid, hands, minBet, maxBet, creditPoints uint32, isShare bool, createTime int64) (uint32, error) {

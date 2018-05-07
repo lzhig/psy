@@ -42,11 +42,6 @@ func (obj *DiamondsCenter) handleEventNetworkPacket(args []interface{}) {
 	}
 }
 
-// Pay function
-func (obj *DiamondsCenter) Pay(from, to uint32, diamonds uint32, keep uint32) error {
-	return db.PayDiamonds(from, to, diamonds, keep)
-}
-
 func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
 
@@ -81,8 +76,9 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 	}
 
 	diamondsWithFee := uint32(math.Ceil(float64(req.Diamonds) * (float64(1) + gApp.config.Diamonds.SendDiamondsFee)))
+	diamondsFee := diamondsWithFee - req.Diamonds
 
-	err = obj.Pay(p.userconn.user.uid, req.Uid, diamondsWithFee, obj.freeDiamonds.GetDiamondsKept())
+	newDiamonds, err := db.PayDiamonds(p.userconn.user.uid, req.Uid, req.Diamonds, diamondsFee, obj.freeDiamonds.GetDiamondsKept())
 	if err == ErrorNotEnoughDiamonds {
 		rsp.SendDiamondsRsp.Ret = msg.ErrorID_SendDiamonds_Not_Enough_Diamonds
 		return
@@ -90,17 +86,20 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 		rsp.SendDiamondsRsp.Ret = msg.ErrorID_DB_Error
 		return
 	}
+	rsp.SendDiamondsRsp.Diamonds = newDiamonds
+
+	// 向to玩家发送通知
+	conn := userManager.GetUserConn(req.Uid)
+	if conn != nil {
+		conn.sendProtocol(
+			&msg.Protocol{
+				Msgid: msg.MessageID_ReceiveDiamonds_Notify,
+				ReceiveDiamondsNotify: &msg.ReceiveDiamondsNotify{Diamonds: req.Diamonds}})
+	}
 }
 
 func (obj *DiamondsCenter) handleDiamondsRecordsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
 
 	rsp := &msg.Protocol{
 		Msgid:              msg.MessageID_DiamondsRecords_Rsp,
