@@ -9,7 +9,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 
 	_ "net/http/pprof"
@@ -28,7 +27,7 @@ func main() {
 	flag.Parse()
 
 	go func() {
-		log.Println(http.ListenAndServe(":6061", nil))
+		http.ListenAndServe(":6061", nil)
 	}()
 
 	base.LogInit("./log")

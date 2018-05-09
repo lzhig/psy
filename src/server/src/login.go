@@ -76,14 +76,6 @@ func (obj *LoginService) handleEventDisableLogin(args []interface{}) {
 
 func (obj *LoginService) handleLogin(arg interface{}) {
 	pc := arg.(*ProtocolConnection)
-
-	// pc.userconn.mxJoinroom.Lock()
-	// defer pc.userconn.mxJoinroom.Unlock()
-
-	// if pc.userconn.conn == nil {
-	// 	return
-	// }
-
 	p := pc.p
 	userconn := pc.userconn
 

@@ -35,7 +35,7 @@ func (obj *DateStatistic) Init() error {
 
 	var f func()
 	f = func() {
-		time.AfterFunc(time.Second*5, f)
+		time.AfterFunc(time.Hour*24, f)
 		yesterday = yesterday.Add(time.Hour * 24)
 		obj.generateDateSheet(yesterday)
 	}

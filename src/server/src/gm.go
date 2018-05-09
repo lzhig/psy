@@ -20,7 +20,7 @@ func (obj *gameManager) Start(addr string) {
 		http.HandleFunc("/exit", gmExit)
 		http.HandleFunc("/updateVersion", gmUpdateVersion)
 		http.HandleFunc("/flushLog", func(w http.ResponseWriter, r *http.Request) {
-			base.LogInfo(roomManager.roomsNumber)
+			roomManager.Send(roomManagerEventLog, nil)
 			base.LogFlush()
 		})
 		http.HandleFunc("/kick", kick)

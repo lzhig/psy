@@ -143,6 +143,10 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 						if player != nil && -obj.room.scoreboard.GetScore(player.uid) > int32(obj.room.creditPoints) {
 							obj.room.tablePlayers[seatID] = nil
 							player.seatID = -1
+							base.LogInfo("exceed credit points. uid:", player.uid)
+							if player.conn == nil {
+								obj.room.kickPlayer(player.uid)
+							}
 
 							obj.room.notifyAll(
 								&msg.Protocol{
@@ -164,6 +168,10 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					}
 					obj.room.tablePlayers[seatID] = nil
 					player.seatID = -1
+					base.LogInfo("not bet for 3 hands. uid:", player.uid)
+					if player.conn == nil {
+						obj.room.kickPlayer(player.uid)
+					}
 
 					obj.room.notifyAll(
 						&msg.Protocol{
@@ -216,6 +224,10 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 					player := obj.room.tablePlayers[0]
 					obj.room.tablePlayers[0] = nil
 					player.seatID = -1
+					base.LogInfo("the banker stands up. uid:", player.uid)
+					if player.conn == nil {
+						obj.room.kickPlayer(player.uid)
+					}
 
 					obj.room.notifyAll(
 						&msg.Protocol{

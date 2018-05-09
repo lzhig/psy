@@ -5,73 +5,73 @@ import (
 	"github.com/lzhig/rapidgo/base"
 )
 
-var busyMessageHandlers = map[msg.MessageID]func(conn *userConnection){
-	msg.MessageID_Login_Req: func(conn *userConnection) {
+var busyMessageHandlers = map[msg.MessageID]func(conn *Connection){
+	msg.MessageID_Login_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Login_Rsp, LoginRsp: &msg.LoginRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_GetProfile_Req: func(conn *userConnection) {
+	msg.MessageID_GetProfile_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetProfile_Rsp, GetProfileRsp: &msg.GetProfileRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_GetPlayingRoom_Req: func(conn *userConnection) {
+	msg.MessageID_GetPlayingRoom_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetPlayingRoom_Rsp, GetPlayingRoomRsp: &msg.GetPlayingRoomRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_CreateRoom_Req: func(conn *userConnection) {
+	msg.MessageID_CreateRoom_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CreateRoom_Rsp, CreateRoomRsp: &msg.CreateRoomRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_JoinRoom_Req: func(conn *userConnection) {
+	msg.MessageID_JoinRoom_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_JoinRoom_Rsp, JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_LeaveRoom_Req: func(conn *userConnection) {
+	msg.MessageID_LeaveRoom_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_LeaveRoom_Rsp, LeaveRoomRsp: &msg.LeaveRoomRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_ListRooms_Req: func(conn *userConnection) {
+	msg.MessageID_ListRooms_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_ListRooms_Rsp, ListRoomsRsp: &msg.ListRoomsRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_CloseRoom_Req: func(conn *userConnection) {
+	msg.MessageID_CloseRoom_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CloseRoom_Rsp, CloseRoomRsp: &msg.CloseRoomRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_SitDown_Req: func(conn *userConnection) {
+	msg.MessageID_SitDown_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_SitDown_Rsp, SitDownRsp: &msg.SitDownRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_StandUp_Req: func(conn *userConnection) {
+	msg.MessageID_StandUp_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_StandUp_Rsp, StandUpRsp: &msg.StandUpRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_AutoBanker_Req: func(conn *userConnection) {
+	msg.MessageID_AutoBanker_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_AutoBanker_Rsp, AutoBankerRsp: &msg.AutoBankerRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_StartGame_Req: func(conn *userConnection) {
+	msg.MessageID_StartGame_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_StartGame_Rsp, StartGameRsp: &msg.StartGameRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_Bet_Req: func(conn *userConnection) {
+	msg.MessageID_Bet_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Bet_Rsp, BetRsp: &msg.BetRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_Combine_Req: func(conn *userConnection) {
+	msg.MessageID_Combine_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_Combine_Rsp, CombineRsp: &msg.CombineRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_GetScoreboard_Req: func(conn *userConnection) {
+	msg.MessageID_GetScoreboard_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetScoreboard_Rsp, GetScoreboardRsp: &msg.GetScoreboardRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_GetRoundHistory_Req: func(conn *userConnection) {
+	msg.MessageID_GetRoundHistory_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetRoundHistory_Rsp, GetRoundHistoryRsp: &msg.GetRoundHistoryRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_SendDiamonds_Req: func(conn *userConnection) {
+	msg.MessageID_SendDiamonds_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_SendDiamonds_Rsp, SendDiamondsRsp: &msg.SendDiamondsRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_DiamondsRecords_Req: func(conn *userConnection) {
+	msg.MessageID_DiamondsRecords_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_DiamondsRecords_Rsp, DiamondsRecordsRsp: &msg.DiamondsRecordsRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_CareerWinLoseData_Req: func(conn *userConnection) {
+	msg.MessageID_CareerWinLoseData_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CareerWinLoseData_Rsp, CareerWinLoseDataRsp: &msg.CareerWinLoseDataRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_CareerRoomRecords_Req: func(conn *userConnection) {
+	msg.MessageID_CareerRoomRecords_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_CareerRoomRecords_Rsp, CareerRoomRecordsRsp: &msg.CareerRoomRecordsRsp{Ret: msg.ErrorID_System_Busy}})
 	},
-	msg.MessageID_GetNotices_Req: func(conn *userConnection) {
+	msg.MessageID_GetNotices_Req: func(conn *Connection) {
 		conn.sendProtocol(&msg.Protocol{Msgid: msg.MessageID_GetNotices_Rsp, GetNoticesRsp: &msg.GetNoticesRsp{Ret: msg.ErrorID_System_Busy}})
 	},
 }
 
-func (obj *NetworkEngine) handleBusy(msgid msg.MessageID, conn *userConnection) {
+func (obj *NetworkEngine) handleBusy(msgid msg.MessageID, conn *Connection) {
 	if handler, ok := busyMessageHandlers[msgid]; ok {
 		handler(conn)
 	} else {
@@ -120,7 +120,7 @@ func (obj *NetworkEngine) handle(msgid msg.MessageID, p *ProtocolConnection) {
 		msg.MessageID_GetRoundHistory_Req,
 		msg.MessageID_CloseResult_Req:
 
-		if p.userconn.user.room != nil {
+		if p.userconn.user.GetRoom() != nil {
 			if !p.userconn.user.room.Send(roomEventNetworkPacket, []interface{}{p}) {
 				obj.handleBusy(msgid, p.userconn)
 			}

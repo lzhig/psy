@@ -44,13 +44,7 @@ func (obj *CareerCenter) handleEventNetworkPacket(args []interface{}) {
 
 func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
+	user := p.user
 
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerWinLoseData_Rsp,
@@ -65,8 +59,7 @@ func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 		return
 	}
 
-	uid := p.userconn.user.uid
-
+	uid := user.uid
 	now := time.Now()
 	end := base.GetTodayZeroClockTime(&now).AddDate(0, 0, 1) // 明天0点
 	rsp.CareerWinLoseDataRsp.Data = make([]*msg.CareerWinLoseDataItem, len(req.Days))
@@ -92,13 +85,7 @@ func (obj *CareerCenter) handleCareerWinLoseData(arg interface{}) {
 
 func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
+	user := p.user
 
 	rsp := &msg.Protocol{
 		Msgid:                msg.MessageID_CareerRoomRecords_Rsp,
@@ -106,7 +93,7 @@ func (obj *CareerCenter) handleCareerRoomRecords(arg interface{}) {
 	}
 	defer p.userconn.sendProtocol(rsp)
 
-	uid := p.userconn.user.uid
+	uid := user.uid
 
 	req := p.p.CareerRoomRecordsReq
 

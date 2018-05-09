@@ -61,42 +61,171 @@ func (obj *LocalUser) GetName() string { return obj.name }
 // The User type represents a player
 type User struct {
 	sync.RWMutex
-	uid      uint32
-	name     string // 名字
-	avatar   string // 头像
-	diamonds uint32 // 钻石
+	uid    uint32
+	name   string // 名字
+	avatar string // 头像
+
+	diamondsMutex sync.RWMutex
+	diamonds      uint32 // 钻石
+	diamondsChan  chan struct{}
+
+	prePayDiamonds uint32 // 预扣钻石，在处理多人扣钻石时，先预扣钻石，等所有人都预扣钻石成功后，再进行真实扣除
 
 	platformUser PlatformUser
 
-	conn *userConnection // 用户当前的连接
-	room *Room           // 所在房间
+	conn *Connection // 用户当前的连接
+	room *Room       // 所在房间
+}
 
+// GetName 返回名字
+func (obj *User) GetName() string {
+	obj.RLock()
+	defer obj.RUnlock()
+	return obj.name
+}
+
+// GetAvatar 返回头像
+func (obj *User) GetAvatar() string {
+	obj.RLock()
+	defer obj.RUnlock()
+	return obj.avatar
+}
+
+// GetRoom 返回房间
+func (obj *User) GetRoom() *Room {
+	obj.RLock()
+	defer obj.RUnlock()
+	return obj.room
+}
+
+// SendProtocol 发送消息
+func (obj *User) SendProtocol(p *msg.Protocol) {
+	obj.RLock()
+	if obj.conn != nil {
+		obj.conn.sendProtocol(p)
+	}
+	obj.RUnlock()
+}
+
+// EnterRoom 进入房间
+func (obj *User) EnterRoom(room *Room) bool {
+	obj.Lock()
+	defer obj.Unlock()
+	if obj.room != nil {
+		base.LogError("the user is still in the room, roomid: ", obj.room.roomID)
+		return false
+
+	}
+	obj.room = room
+	return true
+}
+
+func (obj *User) LeaveRoom() {
+	obj.Lock()
+	defer obj.Unlock()
+	if obj.room == nil {
+		base.LogError("the user is not yet in a room.")
+	}
+	obj.room = nil
+
+	if obj.conn == nil {
+		userManager.DeleteUser(obj.uid)
+	}
+}
+
+// KickUser 踢离用户
+func (obj *User) KickUser(kickType msg.KickType) {
+	obj.Lock()
+	defer obj.Unlock()
+
+	if obj.conn != nil {
+		// 发送被踢消息
+		p := &msg.Protocol{
+			Msgid:      msg.MessageID_Kick_Notify,
+			KickNotify: &msg.KickNotify{Type: kickType},
+		}
+		obj.conn.sendProtocol(p)
+
+		if obj.room != nil {
+			// 向房间发送此用户断线消息
+			obj.room.Send(roomEventUserDisconnect, []interface{}{obj.uid})
+		}
+
+		oldConn := obj.conn
+		obj.conn = nil
+
+		// 5秒后断开连接
+		time.AfterFunc(time.Second*5, func() {
+			oldConn.Disconnect()
+		})
+	}
+}
+
+func (obj *User) Disconnect(conn *Connection) {
+	obj.Lock()
+	defer obj.Unlock()
+
+	if obj.conn == conn {
+		if obj.room != nil {
+			base.LogInfo("disconnected. uid:", obj.uid, ", room_id:", obj.room.roomID)
+			// 向房间发送此用户断线消息
+			obj.room.Send(roomEventUserDisconnect, []interface{}{obj.uid})
+			obj.conn = nil
+		} else {
+			userManager.DeleteUser(obj.uid)
+		}
+	}
+}
+
+func (obj *User) BeginConsumeDiamonds() bool {
+	select {
+	case obj.diamondsChan <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (obj *User) EndConsumeDiamonds() {
+	<-obj.diamondsChan
+}
+
+func (obj *User) GetDiamonds() uint32 {
+	obj.diamondsMutex.RLock()
+	defer obj.diamondsMutex.RUnlock()
+	return obj.diamonds
+}
+
+func (obj *User) AddDiamonds(diamonds uint32) {
+	obj.diamondsMutex.Lock()
+	defer obj.diamondsMutex.Unlock()
+	obj.diamonds += diamonds
+	base.LogInfo("AddDiamonds, uid:", obj.uid, ", diamonds to add:", diamonds, ", new diamonds:", obj.diamonds)
+}
+
+func (obj *User) SubDiamonds(diamonds uint32) bool {
+	obj.diamondsMutex.Lock()
+	defer obj.diamondsMutex.Unlock()
+	if obj.diamonds < diamonds {
+		base.LogError("SubDiamonds - not enough diamonds. uid:", obj.uid, ", user's diamonds:", obj.diamonds, ", diamonds to sub:", diamonds)
+		return false
+	}
+	obj.diamonds -= diamonds
+	base.LogInfo("SubDiamonds, uid:", obj.uid, ", diamonds to sub:", diamonds, ", new diamonds:", obj.diamonds)
+	return true
 }
 
 const (
-	userManagerEventCreateUser base.EventID = iota
-	userManagerEventLoadUser
-	userManagerEventDisconnect
-	userManagerEventConsumeDiamonds
-	userManagerEventUsersConsumeDiamonds
-	userManagerEventEnterRoom
-	userManagerEventLeaveRoom
-	userManagerEventGetRoom
-	//userManagerEventSetRoom
-	userManagerEventGetNameAvatar
-	userManagerEventKickUser
-	userManagerEventKickUsersNotInRoom
-	userManagerEventNotifyAllUsers
-	userManagerEventNetworkPacket
+	userManagerEventNetworkPacket base.EventID = iota
 	userManagerEventNoticeTimer
-	userManagerEventGetUserConn
 )
 
 // UserManager type
 type UserManager struct {
 	base.EventSystem
 
-	users map[uint32]*User
+	usersMutex sync.RWMutex
+	users      map[uint32]*User
 
 	networkPacketHandler base.MessageHandlerImpl
 
@@ -113,21 +242,7 @@ func (obj *UserManager) Init() error {
 
 	obj.EventSystem.Init(1024, true)
 	obj.SetEventHandler(userManagerEventNetworkPacket, obj.handleEventNetworkPacket)
-	obj.SetEventHandler(userManagerEventCreateUser, obj.handleEventCreateUser)
-	obj.SetEventHandler(userManagerEventLoadUser, obj.handleEventLoadUser)
-	obj.SetEventHandler(userManagerEventDisconnect, obj.handleEventDisconnect)
-	obj.SetEventHandler(userManagerEventConsumeDiamonds, obj.handleEventConsumeDiamonds)
-	obj.SetEventHandler(userManagerEventUsersConsumeDiamonds, obj.handleEventUsersConsumeDiamonds)
-	obj.SetEventHandler(userManagerEventEnterRoom, obj.handleEventEnterRoom)
-	obj.SetEventHandler(userManagerEventLeaveRoom, obj.handleEventLeaveRoom)
-	obj.SetEventHandler(userManagerEventGetRoom, obj.handleEventGetRoom)
-	//obj.SetEventHandler(userManagerEventSetRoom, obj.handleEventSetRoom)
-	obj.SetEventHandler(userManagerEventGetNameAvatar, obj.handleEventGetNameAvatar)
-	obj.SetEventHandler(userManagerEventKickUser, obj.handleEventKickUser)
-	obj.SetEventHandler(userManagerEventKickUsersNotInRoom, obj.handleEventKickUsersNotInRoom)
-	obj.SetEventHandler(userManagerEventNotifyAllUsers, obj.handleEventNotifyAllUsers)
 	obj.SetEventHandler(userManagerEventNoticeTimer, obj.handleEventNoticeTimer)
-	obj.SetEventHandler(userManagerEventGetUserConn, obj.handleEventGetUserConn)
 
 	obj.users = make(map[uint32]*User)
 
@@ -167,172 +282,90 @@ func (obj *UserManager) handleGetNotices(arg interface{}) {
 // 	return db.getUIDFacebook(fbID, name)
 // }
 
-// GetUserConn 获取用户连接
-func (obj *UserManager) GetUserConn(uid uint32) *userConnection {
-	c := make(chan *userConnection)
-	obj.Send(userManagerEventGetUserConn, []interface{}{uid, c})
-	return <-c
-}
-
-func (obj *UserManager) handleEventGetUserConn(args []interface{}) {
-	uid := args[0].(uint32)
-	c := args[1].(chan *userConnection)
+// GetUser 获取用户
+func (obj *UserManager) GetUser(uid uint32) *User {
+	obj.usersMutex.RLock()
+	defer obj.usersMutex.RUnlock()
 	user, ok := obj.users[uid]
 	if ok {
-		c <- user.conn
-	} else {
-		c <- nil
+		return user
 	}
+	return nil
 }
 
 // CreateUser 创建用户对象
-func (obj *UserManager) CreateUser(pu PlatformUser, conn *userConnection) (*User, error) {
-	userC := make(chan []interface{})
-	obj.Send(userManagerEventCreateUser, []interface{}{pu, conn, userC})
-	ret := <-userC
-	return ret[0].(*User), ret[1].(error)
-}
+func (obj *UserManager) CreateUser(pu PlatformUser, conn *Connection) (*User, error) {
+	obj.usersMutex.Lock()
+	defer obj.usersMutex.Unlock()
 
-func (obj *UserManager) handleEventCreateUser(args []interface{}) {
-	pu := args[0].(PlatformUser)
-	conn := args[1].(*userConnection)
-	userC := args[2].(chan []interface{})
 	uid, err := db.CreateUser(pu.GetName(), pu.GetAvatarURL(), diamondsCenter.freeDiamonds.GetFreeDiamondsWhenRegister(), pu.GetPlatformID())
 	if err != nil {
-		userC <- nil
-		return
+		return nil, err
 	}
 	if err := pu.SaveToDB(uid); err != nil {
 		base.LogError("[UserManager][CreateUser] Failed to Save to db. uid:", uid, ", user:", pu)
-		userC <- nil
-		return
+		return nil, err
 	}
 	user, err := obj.createUser(uid, conn)
-	if err == nil {
-		user.platformUser = pu
-		userC <- []interface{}{user, nil}
-		return
+	if err != nil {
+		return nil, err
 	}
-	userC <- []interface{}{nil, err}
+	user.platformUser = pu
+	return user, nil
 }
-
-// func (obj *UserManager) fbUserCreate(fbID, name string, conn *userConnection) (uint32, error) {
-// 	uid, err := db.createFacebookUser(fbID, name, gApp.config.User.InitDiamonds)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	if err := obj.createUser(uid, conn); err != nil {
-// 		return 0, err
-// 	}
-
-// 	return uid, nil
-// }
 
 // KickUser 踢离用户
 func (obj *UserManager) KickUser(uid uint32) error {
-	c := make(chan error)
-	obj.Send(userManagerEventKickUser, []interface{}{uid, c})
-	return <-c
-}
+	obj.usersMutex.RLock()
+	defer obj.usersMutex.RUnlock()
 
-func (obj *UserManager) handleEventKickUser(args []interface{}) {
-	uid := args[0].(uint32)
-	c := args[1].(chan error)
 	user, ok := obj.users[uid]
 	if !ok {
-		c <- fmt.Errorf("The user: %d not exist", uid)
-		return
+		return fmt.Errorf("The user: %d not exist", uid)
 	}
 
-	obj.kickUser(user, msg.KickType_GM)
-	c <- nil
+	user.KickUser(msg.KickType_GM)
+	return nil
 }
 
 // KickUsersNotInRoom 踢离不在房间中的所有玩家
 func (obj *UserManager) KickUsersNotInRoom() {
-	c := make(chan struct{})
-	obj.Send(userManagerEventKickUsersNotInRoom, []interface{}{c})
-	<-c
-}
-
-func (obj *UserManager) handleEventKickUsersNotInRoom(args []interface{}) {
-	c := args[0].(chan struct{})
+	obj.usersMutex.RLock()
+	defer obj.usersMutex.RUnlock()
 
 	for _, user := range obj.users {
 		if user.room == nil {
-			obj.kickUser(user, msg.KickType_StopServer)
+			user.KickUser(msg.KickType_StopServer)
 		}
-	}
-	c <- struct{}{}
-}
-
-func (obj *UserManager) kickUser(user *User, t msg.KickType) {
-	if user.conn != nil {
-		// 发送被踢消息
-		p := &msg.Protocol{
-			Msgid:      msg.MessageID_Kick_Notify,
-			KickNotify: &msg.KickNotify{Type: t},
-		}
-		user.conn.sendProtocol(p)
-
-		if user.room != nil {
-			// 向房间发送此用户断线消息
-			user.room.Send(roomEventUserDisconnect, []interface{}{user.uid})
-		}
-
-		oldConn := user.conn
-		user.conn = nil
-
-		// 5秒后断开连接
-		time.AfterFunc(time.Second*5, func() {
-			oldConn.Disconnect()
-		})
 	}
 }
 
 // LoadUser 加载用户
-func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *userConnection) (*User, error) {
-	userC := make(chan []interface{})
-	obj.Send(userManagerEventLoadUser, []interface{}{pu, uid, conn, userC})
-	ret := <-userC
-	if ret[1] == nil {
-		return ret[0].(*User), nil
-	}
-	err := ret[1].(error)
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (obj *UserManager) handleEventLoadUser(args []interface{}) {
-	pu := args[0].(PlatformUser)
-	uid := args[1].(uint32)
-	conn := args[2].(*userConnection)
-	userC := args[3].(chan []interface{})
+func (obj *UserManager) LoadUser(pu PlatformUser, uid uint32, conn *Connection) (*User, error) {
+	obj.usersMutex.Lock()
+	defer obj.usersMutex.Unlock()
 
 	// 如果通过验证，检查此用户是否在线，如果在线，将原连接断开，如果用户在房间内，给房间发送用户断线的消息
 	user, ok := obj.users[uid]
 	var err error
 	if ok {
-		obj.kickUser(user, msg.KickType_Login)
+		user.KickUser(msg.KickType_Login)
 
 		user.platformUser = pu
 		user.name = pu.GetName()
 	} else {
 		user, err = obj.loadUser(pu, uid, conn)
 		if err != nil {
-			userC <- []interface{}{nil, err}
-			return
+			return nil, err
 		}
 	}
 
 	user.conn = conn
 	db.UpdateName(uid, user.name)
-	userC <- []interface{}{user, err}
+	return user, err
 }
 
-func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, error) {
+func (obj *UserManager) createUser(uid uint32, conn *Connection) (*User, error) {
 	diamondsCenter.freeDiamonds.GiveFreeDiamondsEveryDay(uid)
 	name, _, avatar, diamonds, status, err := db.GetUserProfile(uid)
 	if err != nil {
@@ -343,12 +376,12 @@ func (obj *UserManager) createUser(uid uint32, conn *userConnection) (*User, err
 		return nil, errUserBanned
 	}
 
-	user := &User{uid: uid, name: name, avatar: avatar, diamonds: diamonds, conn: conn}
+	user := &User{uid: uid, name: name, avatar: avatar, diamonds: diamonds, conn: conn, diamondsChan: make(chan struct{}, 1)}
 	obj.users[uid] = user
 	return user, nil
 }
 
-func (obj *UserManager) loadUser(pu PlatformUser, uid uint32, conn *userConnection) (*User, error) {
+func (obj *UserManager) loadUser(pu PlatformUser, uid uint32, conn *Connection) (*User, error) {
 	user, err := obj.createUser(uid, conn)
 	if err == nil {
 		user.platformUser = pu
@@ -358,203 +391,16 @@ func (obj *UserManager) loadUser(pu PlatformUser, uid uint32, conn *userConnecti
 	return nil, err
 }
 
-// GetUserNameAvatar 返回用户对象
-func (obj *UserManager) GetUserNameAvatar(uid uint32) (string, string, bool) {
-	ret := make(chan []interface{})
-	obj.Send(userManagerEventGetNameAvatar, []interface{}{uid, ret})
-	result := <-ret
-	return result[0].(string), result[1].(string), result[2].(bool)
-}
+func (obj *UserManager) DeleteUser(uid uint32) bool {
+	obj.usersMutex.Lock()
+	defer obj.usersMutex.Unlock()
 
-func (obj *UserManager) handleEventGetNameAvatar(args []interface{}) {
-	uid := args[0].(uint32)
-	ret := args[1].(chan []interface{})
-	if user, ok := obj.users[uid]; ok {
-		ret <- []interface{}{user.name, user.avatar, true}
-		return
+	if _, ok := obj.users[uid]; ok {
+		delete(obj.users, uid)
+		base.LogInfo("delete uid:", uid)
+		return true
 	}
-	ret <- []interface{}{"", "", false}
-}
-
-func (obj *UserManager) userDisconnect(uid uint32, conn *userConnection) {
-	ret := make(chan struct{})
-	obj.Send(userManagerEventDisconnect, []interface{}{uid, conn, ret})
-	<-ret
-}
-
-func (obj *UserManager) handleEventDisconnect(args []interface{}) {
-	uid := args[0].(uint32)
-	conn := args[1].(*userConnection)
-	ret := args[2].(chan struct{})
-
-	if user, ok := obj.users[uid]; ok {
-		if user.conn == conn {
-			if user.room != nil {
-				base.LogInfo("disconnected. uid:", user.uid, ", room_id:", user.room.roomID)
-				// 向房间发送此用户断线消息
-				user.room.Send(roomEventUserDisconnect, []interface{}{uid})
-				user.conn = nil
-			} else {
-				delete(obj.users, uid)
-				base.LogInfo("delete uid:", uid)
-			}
-		}
-	}
-	ret <- struct{}{}
-}
-
-func (obj *UserManager) consumeDiamonds(uid uint32, diamonds uint32, reason string) bool {
-	ret := make(chan bool)
-	obj.Send(userManagerEventConsumeDiamonds, []interface{}{uid, diamonds, reason, ret})
-	return <-ret
-}
-
-func (obj *UserManager) handleEventConsumeDiamonds(args []interface{}) {
-	uid := args[0].(uint32)
-	diamonds := args[1].(uint32)
-	reason := args[2].(string)
-	ret := args[3].(chan bool)
-	if user, ok := obj.users[uid]; ok {
-		if user.diamonds < diamonds {
-			ret <- false
-			return
-		}
-
-		user.diamonds -= diamonds
-
-		if _, err := db.PayDiamonds(uid, 0, diamonds, 0, 0); err != nil {
-			base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
-		} else {
-			base.LogInfo("[UserManager] [consumeDiamonds] uid:", uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, ", reason:", reason)
-		}
-
-		// 发送扣除钻石通知
-		sendProtocol(user.conn.conn,
-			&msg.Protocol{
-				Msgid: msg.MessageID_ConsumeDiamonds_Notify,
-				ConsumeDiamondsNotify: &msg.ConsumeDiamondsNotify{Diamonds: diamonds}})
-
-		ret <- true
-		return
-	}
-	ret <- false
-}
-
-func (obj *UserManager) consumeUsersDiamonds(uids []uint32, diamonds uint32, reason string) bool {
-	ret := make(chan bool)
-	obj.Send(userManagerEventUsersConsumeDiamonds, []interface{}{uids, diamonds, reason, ret})
-	return <-ret
-}
-
-func (obj *UserManager) handleEventUsersConsumeDiamonds(args []interface{}) {
-	uids := args[0].([]uint32)
-	diamonds := args[1].(uint32)
-	reason := args[2].(string)
-	result := args[3].(chan bool)
-
-	ret := false
-	usersDone := make([]*User, 0, len(uids))
-	defer func() {
-		if ret {
-			for _, user := range usersDone {
-				if _, err := db.PayDiamonds(user.uid, 0, user.diamonds, 0, 0); err != nil {
-					base.LogError("[UserManager] [consumeDiamonds] save to db. error:", err)
-				} else {
-					base.LogInfo("[UserManager] [consumeDiamonds] uid:", user.uid, ", consume diamonds:", diamonds, ", diamonds:", user.diamonds, "reason:", reason)
-				}
-
-				// 发送扣除钻石通知
-				sendProtocol(user.conn.conn,
-					&msg.Protocol{
-						Msgid: msg.MessageID_ConsumeDiamonds_Notify,
-						ConsumeDiamondsNotify: &msg.ConsumeDiamondsNotify{Diamonds: diamonds}})
-
-			}
-			return
-		}
-
-		// 如果失败，把之前减的钻石再加上
-		for _, user := range usersDone {
-			user.diamonds += diamonds
-		}
-	}()
-
-	for _, uid := range uids {
-		if user, ok := obj.users[uid]; ok {
-
-			if user.diamonds < diamonds {
-				result <- false
-				return
-			}
-
-			user.diamonds -= diamonds
-			usersDone = append(usersDone, user)
-		}
-	}
-	ret = true
-	result <- true
-	return
-}
-
-func (obj *UserManager) EnterRoom(uid uint32, room *Room) bool {
-	ret := make(chan bool)
-	obj.Send(userManagerEventEnterRoom, []interface{}{uid, room, ret})
-	return <-ret
-}
-
-func (obj *UserManager) handleEventEnterRoom(args []interface{}) {
-	uid := args[0].(uint32)
-	room := args[1].(*Room)
-	ret := args[2].(chan bool)
-	if user, ok := obj.users[uid]; ok {
-		if user.room != nil {
-			base.LogError("user.room should be nil when a user enters room. roomid:", user.room.roomID)
-		}
-		user.room = room
-		ret <- true
-	} else {
-		ret <- false
-	}
-}
-
-func (obj *UserManager) LeaveRoom(uid uint32) {
-	ret := make(chan struct{})
-	obj.Send(userManagerEventLeaveRoom, []interface{}{uid, ret})
-	<-ret
-}
-
-func (obj *UserManager) handleEventLeaveRoom(args []interface{}) {
-	uid := args[0].(uint32)
-	ret := args[1].(chan struct{})
-	if user, ok := obj.users[uid]; ok {
-		if user.room == nil {
-			base.LogError("user.room should not be nil when a user leaves room")
-		}
-		user.room = nil
-
-		if user.conn == nil {
-			delete(obj.users, uid)
-			base.LogInfo("delete user:", uid)
-		}
-	}
-	ret <- struct{}{}
-}
-
-func (obj *UserManager) GetUserRoom(uid uint32) *Room {
-	ret := make(chan *Room)
-	obj.Send(userManagerEventGetRoom, []interface{}{uid, ret})
-	return <-ret
-}
-
-func (obj *UserManager) handleEventGetRoom(args []interface{}) {
-	uid := args[0].(uint32)
-	ret := args[1].(chan *Room)
-	if user, ok := obj.users[uid]; ok {
-		ret <- user.room
-		return
-	}
-	ret <- nil
-	return
+	return false
 }
 
 func (obj *UserManager) handleEventNoticeTimer(args []interface{}) {
@@ -590,19 +436,12 @@ func (obj *UserManager) handleEventNoticeTimer(args []interface{}) {
 
 // NotifyAllUsers 发送公告
 func (obj *UserManager) NotifyAllUsers() error {
-	c := make(chan error)
-	obj.Send(userManagerEventNotifyAllUsers, []interface{}{c})
-	return <-c
-}
-
-// 更新公告时，先通知当前时间内的公告，然后定时一个离当前时间最近的公告
-func (obj *UserManager) handleEventNotifyAllUsers(args []interface{}) {
-	c := args[0].(chan error)
+	obj.usersMutex.RLock()
+	defer obj.usersMutex.RUnlock()
 
 	// load notice
 	if err := obj.notices.Load(gApp.config.Notice.File); err != nil {
-		c <- err
-		return
+		return err
 	}
 
 	notices := obj.notices.GetAvailableNotices(true)
@@ -618,7 +457,7 @@ func (obj *UserManager) handleEventNotifyAllUsers(args []interface{}) {
 	}
 
 	obj.notices.BeginTicker(&obj.EventSystem, userManagerEventNoticeTimer)
-	c <- nil
+	return nil
 }
 
 // NoticeConfig 公告配置

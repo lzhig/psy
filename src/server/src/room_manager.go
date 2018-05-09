@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	roomManagerEventNetworkPacket base.EventID = iota
+	roomManagerEventInit base.EventID = iota
+	roomManagerEventNetworkPacket
 	roomManagerEventCloseRoom
 	roomManagerEventReleaseRoom
 	roomManagerEventStopServer
+	roomManagerEventLog
 )
 
 // RoomManager type
@@ -35,12 +37,13 @@ func (obj *RoomManager) init() error {
 	obj.SetEventHandler(roomManagerEventCloseRoom, obj.handleEventCloseRoom)
 	obj.SetEventHandler(roomManagerEventReleaseRoom, obj.handleEventReleaseRoom)
 	obj.SetEventHandler(roomManagerEventStopServer, obj.handleEventStopServer)
+	obj.SetEventHandler(roomManagerEventInit, obj.handleEventInit)
+	obj.SetEventHandler(roomManagerEventLog, obj.handleEventLog)
 
 	obj.roomlocker.Init()
 	if err := obj.roomCountdown.Init(); err != nil {
 		return err
 	}
-	obj.roomsNumber = make(map[int]*Room)
 
 	obj.networkPacketHandler.Init()
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CreateRoom_Req, obj.handleCreateRoomReq)
@@ -50,9 +53,22 @@ func (obj *RoomManager) init() error {
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CloseRoom_Req, obj.handleCloseRoomReq)
 	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GetPlayingRoom_Req, obj.handleGetPlayingRoomReq)
 
+	obj.Send(roomManagerEventInit, nil)
+
 	obj.Enable(true)
 
 	return nil
+}
+
+func (obj *RoomManager) handleEventInit(args []interface{}) {
+	obj.roomsNumber = make(map[int]*Room)
+}
+
+func (obj *RoomManager) handleEventLog(args []interface{}) {
+	base.LogInfo(obj.roomsNumber)
+	for _, room := range obj.roomsNumber {
+		room.Send(roomEventLog, nil)
+	}
 }
 
 func (obj *RoomManager) handleEventNetworkPacket(args []interface{}) {
@@ -147,13 +163,14 @@ func (obj *RoomManager) createRoomBase(name string, num int, roomID, uid, hands,
 
 // CloseRoom 关闭房间
 func (obj *RoomManager) CloseRoom(roomid uint32) bool {
-	base.LogInfo("CloseRoom, room_id:", roomid, ", left:", len(obj.roomsNumber))
-	for _, room := range obj.roomsNumber {
-		base.LogInfo("room_id:", room.roomID, ", status:", room.round.state, ", players:", room.players)
-		break
-	}
 	obj.roomlocker.Lock(roomid)
 	defer obj.roomlocker.Unlock(roomid)
+
+	// base.LogInfo("CloseRoom, room_id:", roomid, ", left:", len(obj.roomsNumber))
+	// for _, room := range obj.roomsNumber {
+	// 	base.LogInfo("room_id:", room.roomID, ", status:", room.round.state, ", players:", room.players)
+	// 	break
+	// }
 
 	r, ok := obj.rooms.Load(roomid)
 	if ok {

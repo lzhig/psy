@@ -10,14 +10,7 @@ import (
 
 func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
+	user := p.user
 	req := p.p.CreateRoomReq
 	rsp := &msg.Protocol{
 		Msgid:         msg.MessageID_CreateRoom_Rsp,
@@ -62,13 +55,15 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	}
 
 	// hands
+	// 目前不支持无限局
+	// req.Hands > 0
 	if req.Hands == 0 {
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Invalid_Hands
 		return
 	}
 
 	// 创建的房间达到上限
-	count, err := db.getRoomsCountCreatedByUser(p.userconn.user.uid)
+	count, err := db.getRoomsCountCreatedByUser(user.uid)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to query the count of rooms created. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -80,11 +75,19 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	}
 
 	// 扣钻石
-	if //req.Hands > 0 && // 目前不支持无限局
-	!req.IsShare &&
-		!userManager.consumeDiamonds(p.userconn.user.uid, gApp.config.Room.RoomRate*req.Hands, "create room") {
-		rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Not_Enough_Diamonds
-		return
+	if !req.IsShare {
+		diamonds := gApp.config.Room.RoomRate * req.Hands
+		op := &ConsumeDiamondsOperation{Users: []*User{user}, Diamonds: diamonds}
+		if err := op.Execute(); err != nil {
+			rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Consume_Diamonds_Failed
+			return
+		}
+		// 发送扣除钻石通知
+		p.userconn.sendProtocol(
+			&msg.Protocol{
+				Msgid: msg.MessageID_ConsumeDiamonds_Notify,
+				ConsumeDiamondsNotify: &msg.ConsumeDiamondsNotify{Diamonds: diamonds}})
+
 	}
 
 	number, err := roomNumberGenerator.get()
@@ -94,7 +97,7 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	}
 
 	createTime := time.Now().Unix()
-	room, err := obj.createRoom(number, req.Name, p.userconn.user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints*req.MaxBet, req.IsShare, createTime)
+	room, err := obj.createRoom(number, req.Name, user.uid, req.Hands, req.MinBet, req.MaxBet, req.CreditPoints*req.MaxBet, req.IsShare, createTime)
 	if err != nil {
 		base.LogError("[RoomManager][createRoom] failed to create room. error:", err)
 		rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
@@ -108,14 +111,8 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
-
 	req := p.p.JoinRoomReq
+
 	rsp := &msg.Protocol{
 		Msgid:       msg.MessageID_JoinRoom_Rsp,
 		JoinRoomRsp: &msg.JoinRoomRsp{Ret: msg.ErrorID_Ok},
@@ -168,12 +165,7 @@ func (obj *RoomManager) handleJoinRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
+	user := p.user
 
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_LeaveRoom_Rsp,
@@ -186,25 +178,19 @@ func (obj *RoomManager) handleLeaveRoomReq(arg interface{}) {
 		return
 	}
 
-	room := userManager.GetUserRoom(p.userconn.user.uid)
-	if room == nil {
-		rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
-		p.userconn.sendProtocol(rsp)
+	room := user.GetRoom()
+	if room != nil {
+		room.Send(roomEventNetworkPacket, []interface{}{p})
 		return
 	}
 
-	room.Send(roomEventNetworkPacket, []interface{}{p})
-	// room.GetProtoChan() <- p
+	rsp.LeaveRoomRsp.Ret = msg.ErrorID_LeaveRoom_Not_In
+	p.userconn.sendProtocol(rsp)
 }
 
 func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
+	user := p.user
 
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_ListRooms_Rsp,
@@ -217,7 +203,7 @@ func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 		return
 	}
 
-	rooms, err := db.GetRoomsListJoined(p.userconn.user.uid)
+	rooms, err := db.GetRoomsListJoined(user.uid)
 	if err != nil {
 		rsp.ListRoomsRsp.Ret = msg.ErrorID_DB_Error
 		return
@@ -242,12 +228,6 @@ func (obj *RoomManager) handleListRoomsReq(arg interface{}) {
 
 func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
-	// p.userconn.mxJoinroom.Lock()
-	// defer p.userconn.mxJoinroom.Unlock()
-
-	// if p.userconn.conn == nil || p.userconn.user == nil {
-	// 	return
-	// }
 
 	rsp := &msg.Protocol{
 		Msgid:        msg.MessageID_CloseRoom_Rsp,
@@ -271,6 +251,7 @@ func (obj *RoomManager) handleCloseRoomReq(arg interface{}) {
 
 func (obj *RoomManager) handleGetPlayingRoomReq(arg interface{}) {
 	p := arg.(*ProtocolConnection)
+	user := p.user
 
 	rsp := &msg.Protocol{
 		Msgid:             msg.MessageID_GetPlayingRoom_Rsp,
@@ -283,7 +264,7 @@ func (obj *RoomManager) handleGetPlayingRoomReq(arg interface{}) {
 		return
 	}
 
-	if room := userManager.GetUserRoom(p.userconn.user.uid); room != nil {
+	if room := user.GetRoom(); room != nil {
 		rsp.GetPlayingRoomRsp.RoomNumber = roomNumberGenerator.decode(room.number)
 	}
 }

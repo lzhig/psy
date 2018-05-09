@@ -51,7 +51,7 @@ func (obj *NetworkEngine) Start(addr string, maxUsers uint32) error {
 						case rapidnet.EventConnected:
 							base.LogInfo(event.Conn.RemoteAddr().String(), " connected")
 							ctx, _ := context.WithCancel(ctx)
-							gApp.GoRoutineArgs(ctx, obj.handleConnection, &userConnection{conn: event.Conn})
+							gApp.GoRoutineArgs(ctx, obj.handleConnection, &Connection{conn: event.Conn})
 
 							// todo 连接成功后，一段时间后需要登录成功，否则将断线
 						case rapidnet.EventDisconnected:
@@ -73,12 +73,12 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 		base.LogError("[NetworkEngine][handleConnection] invalid args")
 		return
 	}
-	userconn := args[0].(*userConnection)
+	userconn := args[0].(*Connection)
 	defer func() {
 		if userconn.user != nil {
 			onlineStatistic.OnlinePersonsChange(false)
 			base.LogInfo("disconnected. uid:", userconn.user.uid)
-			userManager.userDisconnect(userconn.user.uid, userconn)
+			userconn.user.Disconnect(userconn)
 			//userconn.user = nil
 		}
 	}()
@@ -106,30 +106,37 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 				return
 			}
 
-			obj.handle(p.Msgid, &ProtocolConnection{p: p, userconn: userconn})
+			if p.Msgid != msg.MessageID_Login_Req && userconn.user == nil {
+				base.LogError("Please login first. address:", userconn.conn.RemoteAddr().String())
+				userconn.Disconnect()
+				return
+			} else if p.Msgid == msg.MessageID_Login_Req && userconn.user != nil {
+				base.LogError("Already login.", userconn.conn.RemoteAddr().String())
+				userconn.Disconnect()
+				return
+			}
+
+			obj.handle(p.Msgid, &ProtocolConnection{p: p, userconn: userconn, user: userconn.user})
 		}
 	}
 }
 
-type userConnection struct {
-	//uid uint32
-	//name string
+type Connection struct {
 	user *User
 	conn *rapidnet.Connection
-	//mxJoinroom sync.Mutex
-	//room *Room
 }
 
-func (obj *userConnection) Disconnect() {
+func (obj *Connection) Disconnect() {
 	obj.conn.Disconnect()
 }
 
-func (obj *userConnection) sendProtocol(p *msg.Protocol) {
+func (obj *Connection) sendProtocol(p *msg.Protocol) {
 	sendProtocol(obj.conn, p)
 }
 
 // ProtocolConnection type
 type ProtocolConnection struct {
 	p        *msg.Protocol
-	userconn *userConnection
+	userconn *Connection
+	user     *User
 }
