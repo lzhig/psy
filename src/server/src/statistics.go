@@ -77,8 +77,7 @@ type maxStatistic struct {
 }
 
 func (obj *maxStatistic) reset() {
-	obj.Max = 0
-	obj.now = 0
+	obj.Max = obj.now
 }
 
 // change 变化, increase为true增加，否则减少
@@ -152,7 +151,7 @@ func (obj *OnlineStatistic) load() error {
 		return err
 	}
 
-	// 判断当前时间是否是今天，否则清零
+	// 判断当前时间是否是今天，否则最大值调成当前值
 	t, err := time.ParseInLocation("2006-1-2 15:4:5", obj.Date, time.Local)
 	if err != nil {
 		return err
@@ -229,4 +228,7 @@ func (obj *OnlineStatistic) loop() {
 
 func (obj *OnlineStatistic) generateOnlineSheet(date *time.Time) {
 	db.SaveOnlineStatistic(date, obj.Online.Max, obj.Playing.Max, obj.Rooms.Max)
+	obj.Online.reset()
+	obj.Playing.reset()
+	obj.Rooms.reset()
 }
