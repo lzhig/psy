@@ -35,7 +35,7 @@ func (obj *mysqlDB) close() {
 // 查找fbid，如果存在更新name
 func (obj *mysqlDB) getUIDFacebook(fbID string) (uint32, error) {
 	var uid uint32
-	err := obj.db.QueryRow("select uid from facebook_users where fbid='?'", fbID).Scan(&uid)
+	err := obj.db.QueryRow("select uid from facebook_users where fbid=?", fbID).Scan(&uid)
 	switch {
 	case err == sql.ErrNoRows:
 		return 0, nil
