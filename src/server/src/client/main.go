@@ -9,9 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"./client"
+	"./room"
 )
 
-var roomManager = &RoomManager{}
+var roomManager = &room.RoomManager{}
 
 func main() {
 	var ip = flag.String("address", "127.0.0.1:8010", "help message for flagname")
@@ -26,10 +29,10 @@ func main() {
 
 	if *num == 1 {
 		fmt.Println("interactive mode")
-		c := client{}
-		c.init(*ip, 5000, fmt.Sprintf("fbid_%d", *id), uint32(*room))
-		c.robot.SwitchDriver("no ai")
-		go c.start()
+		c := client.Client{}
+		c.Init(*ip, 5000, fmt.Sprintf("fbid_%d", *id), uint32(*room), roomManager)
+		c.GetRobot().SwitchDriver("no ai")
+		go c.Start()
 
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
@@ -44,7 +47,7 @@ func main() {
 				cmd := words[0]
 				switch cmd {
 				case "gp", "getprofile":
-					c.sendGetProfile()
+					c.SendGetProfile()
 				case "senddiamonds":
 					if count > 2 {
 						uid, err := strconv.Atoi(words[1])
@@ -55,20 +58,20 @@ func main() {
 						if err != nil {
 							continue
 						}
-						c.sendSendDiamonds(uint32(uid), uint32(diamonds))
+						c.SendSendDiamonds(uint32(uid), uint32(diamonds))
 					}
 				case "dr":
-					c.sendDiamondsRecords()
+					c.SendDiamondsRecords()
 				case "lr", "listrooms":
-					c.sendListRooms()
+					c.SendListRooms()
 				case "cr", "createroom":
-					c.sendCreateRoom()
+					c.SendCreateRoom()
 				case "closeroom":
 					if count > 1 {
 						if roomID, err := strconv.Atoi(words[1]); err != nil {
 							continue
 						} else {
-							c.sendCloseRoom(uint32(roomID))
+							c.SendCloseRoom(uint32(roomID))
 						}
 					}
 				case "jr", "joinroom":
@@ -77,34 +80,37 @@ func main() {
 						if number, err := strconv.Atoi(words[1]); err != nil {
 							continue
 						} else {
-							c.sendJoinRoom(number)
+							c.SendJoinRoom(number)
 						}
 					}
 				case "sd", "sitdown":
-					seatID := c.getEmptySeatID()
-					if seatID >= 0 {
-						c.sendSitDown(uint32(seatID))
+					if count > 1 {
+						if number, err := strconv.Atoi(words[1]); err != nil {
+							continue
+						} else {
+							c.SendSitDown(uint32(number))
+						}
 					}
 				case "sg", "startgame":
-					c.sendStartGame()
+					c.SendStartGame()
 				case "b", "bet":
-					c.sendBet()
+					c.SendBet()
 				case "c", "combine":
-					c.sendCombine()
+					c.SendCombine()
 				case "su", "standup":
-					c.sendStandUp()
+					c.SendStandUp()
 				case "leaveroom":
-					c.sendLeaveRoom()
+					c.SendLeaveRoom()
 				case "ab", "autobanker":
 
 				case "sb", "scoreboard":
-					c.sendGetScorebard()
+					c.SendGetScorebard()
 				case "rh", "roundhistory":
 					if count > 1 {
 						if round, err := strconv.Atoi(words[1]); err != nil {
 							continue
 						} else {
-							c.sendGetRoundHistory(uint32(round))
+							c.SendGetRoundHistory(uint32(round))
 						}
 					}
 				case "cd":
@@ -123,7 +129,7 @@ func main() {
 						if days, err := parse(); err != nil {
 							continue
 						} else {
-							c.sendCareerWinLoseData(days)
+							c.SendCareerWinLoseData(days)
 						}
 					}
 				case "cr1":
@@ -131,7 +137,7 @@ func main() {
 						if days, err := strconv.Atoi(words[1]); err != nil {
 							continue
 						} else {
-							c.sendCareerRoomRecords(uint32(days))
+							c.SendCareerRoomRecords(uint32(days))
 						}
 					}
 				case "h", "help":
@@ -148,9 +154,9 @@ func main() {
 	for i := 0; i < *num; i++ {
 		time.Sleep(time.Millisecond * 100)
 		go func(i int) {
-			c := &client{}
-			c.init(*ip, 5000, fmt.Sprintf("fbid_%d", i), uint32(*room))
-			c.start()
+			c := &client.Client{}
+			c.Init(*ip, 5000, fmt.Sprintf("fbid_%d", i), uint32(*room), roomManager)
+			c.Start()
 		}(i)
 	}
 	select {}

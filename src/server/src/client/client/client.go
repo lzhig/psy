@@ -1,11 +1,13 @@
-package main
+package client
 
 import (
 	"fmt"
 	"math/rand"
 	"time"
 
-	"../msg"
+	"../../msg"
+	"../robot"
+	"../room"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/lzhig/rapidgo/base"
@@ -13,7 +15,7 @@ import (
 )
 
 const (
-	actionLogin ActionID = iota
+	actionLogin robot.ActionID = iota
 	actionLeaveRoom
 	actionListRooms
 	actionJoinRoom
@@ -21,7 +23,14 @@ const (
 	actionStandUp
 )
 
-type client struct {
+const (
+	clientEventNetworkMessage base.EventID = iota
+)
+
+// Client 客户端
+type Client struct {
+	base.EventSystem
+
 	tcpClient  *rapidnet.TCPClient
 	serverAddr string
 	timeout    uint32
@@ -30,9 +39,10 @@ type client struct {
 
 	fbID string
 
-	protoHandler protocolHandler
+	networkPacketHandler base.MessageHandlerImpl
+	//protoHandler protocol.protocolHandler
 
-	robot *Robot
+	robot *robot.Robot
 
 	room            *msg.Room
 	waittingPlayers uint32
@@ -42,10 +52,13 @@ type client struct {
 	cards      []uint32
 	roomNumber uint32
 
+	roomManager *room.RoomManager
+
 	s *rand.Rand
 }
 
-func (obj *client) init(addr string, timeout uint32, fbID string, roomNumber uint32) {
+// Init 初始化
+func (obj *Client) Init(addr string, timeout uint32, fbID string, roomNumber uint32, roomManager *room.RoomManager) {
 	obj.serverAddr = addr
 	obj.timeout = timeout
 	obj.tcpClient = rapidnet.CreateTCPClient()
@@ -53,14 +66,48 @@ func (obj *client) init(addr string, timeout uint32, fbID string, roomNumber uin
 	obj.roomNumber = roomNumber
 	obj.seatID = -1
 	obj.s = rand.New(rand.NewSource(time.Now().Unix()))
+	obj.roomManager = roomManager
 
-	obj.protoHandler.init(obj)
+	obj.EventSystem.Init(1024, true)
+	obj.SetEventHandler(clientEventNetworkMessage, func(args []interface{}) {
+		p := args[0].(*msg.Protocol)
+		if p == nil {
+			base.LogError("args[0] isn't a msg.Protocol object.")
+			return
+		}
+
+		if !obj.networkPacketHandler.Handle(p.Msgid, p) {
+			base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.Msgid)])
+			//obj.conn.Disconnect()
+		}
+	})
+
+	//obj.protoHandler.init(obj)
+	obj.networkPacketHandler.Init()
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Login_Rsp, obj.handleLogin)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_CreateRoom_Rsp, obj.handleCreateRoom)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Rsp, obj.handleJoinRoom)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_SitDown_Rsp, obj.handleSitDown)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_StandUp_Rsp, obj.handleStandUp)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_LeaveRoom_Rsp, obj.handleLeaveRoom)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Bet_Rsp, obj.handleBet)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_GameState_Notify, obj.handleGameStateNotify)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_ListRooms_Rsp, obj.handleListRooms)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_JoinRoom_Notify, obj.handleJoinRoomNotify)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_SitDown_Notify, obj.handleSitDownNotify)
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_ConsumeDiamonds_Notify, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Combine_Rsp, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_StartGame_Rsp, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Bet_Notify, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_Combine_Notify, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_LeaveRoom_Notify, func(args interface{}) {})
+	obj.networkPacketHandler.SetMessageHandler(msg.MessageID_StandUp_Notify, func(args interface{}) {})
 
 	obj.initRobot()
 }
 
-func (obj *client) initRobot() {
-	obj.robot = &Robot{}
+func (obj *Client) initRobot() {
+	obj.robot = &robot.Robot{}
 	obj.robot.Init()
 
 	obj.initRobotNoAi()
@@ -71,43 +118,47 @@ func (obj *client) initRobot() {
 	}
 }
 
-func (obj *client) initRobotNoAi() {
-	obj.robot.Set("no ai", NewRobotDriver())
+func (obj *Client) GetRobot() *robot.Robot {
+	return obj.robot
 }
 
-func (obj *client) initRobotNormalAi() {
-	robotDriver := NewRobotDriver()
+func (obj *Client) initRobotNoAi() {
+	obj.robot.Set("no ai", robot.NewRobotDriver())
+}
+
+func (obj *Client) initRobotNormalAi() {
+	robotDriver := robot.NewRobotDriver()
 
 	// Login
-	strategy := &RobotStrategy{}
-	strategy.Set([]*RobotAction{
-		NewRobotAction(1000, obj.sendListRooms),
+	strategy := &robot.RobotStrategy{}
+	strategy.Set([]*robot.RobotAction{
+		robot.NewRobotAction(1000, obj.SendListRooms),
 	})
 	robotDriver.Set(actionLogin, strategy)
 
 	// list room
-	strategy = &RobotStrategy{}
-	strategy.Set([]*RobotAction{
-		NewRobotAction(10, obj.JoinAvaliableRoom),
+	strategy = &robot.RobotStrategy{}
+	strategy.Set([]*robot.RobotAction{
+		robot.NewRobotAction(10, obj.JoinAvaliableRoom),
 	})
 	robotDriver.Set(actionListRooms, strategy)
 	robotDriver.Set(actionLeaveRoom, strategy)
 
 	// join room
-	strategy = &RobotStrategy{}
-	strategy.Set([]*RobotAction{
-		NewRobotAction(10, obj.sitDown),
+	strategy = &robot.RobotStrategy{}
+	strategy.Set([]*robot.RobotAction{
+		robot.NewRobotAction(10, obj.sitDown),
 	})
 	robotDriver.Set(actionJoinRoom, strategy)
 
 	// sit down
-	strategy = &RobotStrategy{}
-	strategy.Set([]*RobotAction{
-		NewRobotAction(10, func() {
+	strategy = &robot.RobotStrategy{}
+	strategy.Set([]*robot.RobotAction{
+		robot.NewRobotAction(10, func() {
 			log(obj, "players: ", obj.room.Players)
 			tablePlayers := obj.getTablePlayers()
 			if obj.room.State == msg.GameState_Ready && obj.seatID == 0 && tablePlayers > obj.waittingPlayers {
-				obj.sendStartGame()
+				obj.SendStartGame()
 			} else {
 				log(obj, "waitting more players.state=", obj.room.State, ", players=", obj.waittingPlayers, ", tablePlayers=", tablePlayers)
 			}
@@ -116,8 +167,8 @@ func (obj *client) initRobotNormalAi() {
 	robotDriver.Set(actionSitDownNotify, strategy)
 
 	// stand up
-	strategy = &RobotStrategy{}
-	strategy.Set([]*RobotAction{
+	strategy = &robot.RobotStrategy{}
+	strategy.Set([]*robot.RobotAction{
 		//NewRobotAction(10, obj.sitDown),
 	})
 	robotDriver.Set(actionStandUp, strategy)
@@ -125,7 +176,8 @@ func (obj *client) initRobotNormalAi() {
 	obj.robot.Set("normal", robotDriver)
 }
 
-func (obj *client) start() {
+// Start 开始
+func (obj *Client) Start() {
 	connectFunc := func() {
 		for {
 			var err error
@@ -158,7 +210,7 @@ func (obj *client) start() {
 	}
 }
 
-func (obj *client) sendProtocol(p *msg.Protocol) {
+func (obj *Client) sendProtocol(p *msg.Protocol) {
 	//log(obj, "send:", p)
 	data, err := proto.Marshal(p)
 	if err != nil {
@@ -167,7 +219,7 @@ func (obj *client) sendProtocol(p *msg.Protocol) {
 	obj.conn.Send(data)
 }
 
-func (obj *client) sendLoginReq() {
+func (obj *Client) sendLoginReq() {
 	//log(obj, "send login request")
 	obj.sendProtocol(
 		&msg.Protocol{
@@ -182,7 +234,8 @@ func (obj *client) sendLoginReq() {
 		})
 }
 
-func (obj *client) sendGetProfile() {
+// SendGetProfile 发送GetProfile请求
+func (obj *Client) SendGetProfile() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:         msg.MessageID_GetProfile_Req,
@@ -190,7 +243,7 @@ func (obj *client) sendGetProfile() {
 		})
 }
 
-func (obj *client) sendSendDiamonds(uid, diamonds uint32) {
+func (obj *Client) SendSendDiamonds(uid, diamonds uint32) {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_SendDiamonds_Req,
@@ -201,7 +254,7 @@ func (obj *client) sendSendDiamonds(uid, diamonds uint32) {
 		})
 }
 
-func (obj *client) sendDiamondsRecords() {
+func (obj *Client) SendDiamondsRecords() {
 	tomorrow := time.Now().AddDate(0, 0, 1)
 	end := tomorrow.Format("2006-1-2")
 	begin := tomorrow.AddDate(0, 0, -30).Format("2006-1-2")
@@ -215,7 +268,7 @@ func (obj *client) sendDiamondsRecords() {
 		})
 }
 
-func (obj *client) sendListRooms() {
+func (obj *Client) SendListRooms() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:        msg.MessageID_ListRooms_Req,
@@ -223,7 +276,7 @@ func (obj *client) sendListRooms() {
 		})
 }
 
-func (obj *client) sendCreateRoom() {
+func (obj *Client) SendCreateRoom() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_CreateRoom_Req,
@@ -238,7 +291,7 @@ func (obj *client) sendCreateRoom() {
 		})
 }
 
-func (obj *client) sendCloseRoom(roomID uint32) {
+func (obj *Client) SendCloseRoom(roomID uint32) {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_CloseRoom_Req,
@@ -248,7 +301,7 @@ func (obj *client) sendCloseRoom(roomID uint32) {
 		})
 }
 
-func (obj *client) sendJoinRoom(number int) {
+func (obj *Client) SendJoinRoom(number int) {
 	obj.roomNumber = uint32(number)
 	log(obj, "join room: ", obj.roomNumber)
 	obj.sendProtocol(
@@ -260,24 +313,23 @@ func (obj *client) sendJoinRoom(number int) {
 		})
 }
 
-func (obj *client) JoinAvaliableRoom() {
-	c := make(chan *Room)
-	roomManager.Send(roomManagerEventGetAvaliableRoom, []interface{}{c})
-	room := <-c
+func (obj *Client) JoinAvaliableRoom() {
+
+	room := obj.roomManager.GetRandomRoom()
 	if room == nil {
-		obj.sendCreateRoom()
+		obj.SendCreateRoom()
 	} else {
 		obj.sendProtocol(
 			&msg.Protocol{
 				Msgid: msg.MessageID_JoinRoom_Req,
 				JoinRoomReq: &msg.JoinRoomReq{
-					RoomNumber: room.number,
+					RoomNumber: room.GetNumber(),
 				},
 			})
 	}
 }
 
-func (obj *client) sendLeaveRoom() {
+func (obj *Client) SendLeaveRoom() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:        msg.MessageID_LeaveRoom_Req,
@@ -285,17 +337,17 @@ func (obj *client) sendLeaveRoom() {
 		})
 }
 
-func (obj *client) sitDown() {
+func (obj *Client) sitDown() {
 	obj.seatID = obj.getEmptySeatID()
 	log(obj, "seatID = ", obj.seatID)
 	if obj.seatID >= 0 {
-		obj.sendSitDown(uint32(obj.seatID))
+		obj.SendSitDown(uint32(obj.seatID))
 	} else {
-		obj.sendLeaveRoom()
+		obj.SendLeaveRoom()
 	}
 }
 
-func (obj *client) sendSitDown(seatID uint32) {
+func (obj *Client) SendSitDown(seatID uint32) {
 	if obj.room == nil {
 		base.LogError("cannot sit down because not in a room")
 		return
@@ -308,7 +360,7 @@ func (obj *client) sendSitDown(seatID uint32) {
 		})
 }
 
-func (obj *client) getEmptySeatID() int32 {
+func (obj *Client) getEmptySeatID() int32 {
 	for seatID := uint32(0); seatID < 4; seatID++ {
 		found := false
 		for _, player := range obj.room.Players {
@@ -325,7 +377,7 @@ func (obj *client) getEmptySeatID() int32 {
 	return -1
 }
 
-func (obj *client) getTablePlayers() uint32 {
+func (obj *Client) getTablePlayers() uint32 {
 	num := uint32(0)
 	for _, player := range obj.room.Players {
 		if player.SeatId >= 0 {
@@ -336,7 +388,7 @@ func (obj *client) getTablePlayers() uint32 {
 	return num
 }
 
-func (obj *client) sendBet() {
+func (obj *Client) SendBet() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:  msg.MessageID_Bet_Req,
@@ -344,7 +396,7 @@ func (obj *client) sendBet() {
 		})
 }
 
-func (obj *client) sendCombine() {
+func (obj *Client) SendCombine() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid: msg.MessageID_Combine_Req,
@@ -355,7 +407,7 @@ func (obj *client) sendCombine() {
 		})
 }
 
-func (obj *client) sendStandUp() {
+func (obj *Client) SendStandUp() {
 	obj.sendProtocol(
 		&msg.Protocol{
 			Msgid:      msg.MessageID_StandUp_Req,
@@ -363,42 +415,42 @@ func (obj *client) sendStandUp() {
 		})
 }
 
-func (obj *client) sendStartGame() {
+func (obj *Client) SendStartGame() {
 	obj.sendProtocol(&msg.Protocol{
 		Msgid:        msg.MessageID_StartGame_Req,
 		StartGameReq: &msg.StartGameReq{},
 	})
 }
 
-func (obj *client) sendGetScorebard() {
+func (obj *Client) SendGetScorebard() {
 	obj.sendProtocol(&msg.Protocol{
 		Msgid:            msg.MessageID_GetScoreboard_Req,
 		GetScoreboardReq: &msg.GetScoreboardReq{Pos: 0},
 	})
 }
 
-func (obj *client) sendGetRoundHistory(round uint32) {
+func (obj *Client) SendGetRoundHistory(round uint32) {
 	obj.sendProtocol(&msg.Protocol{
 		Msgid:              msg.MessageID_GetRoundHistory_Req,
 		GetRoundHistoryReq: &msg.GetRoundHistoryReq{Round: round},
 	})
 }
 
-func (obj *client) sendCareerWinLoseData(days []uint32) {
+func (obj *Client) SendCareerWinLoseData(days []uint32) {
 	obj.sendProtocol(&msg.Protocol{
 		Msgid:                msg.MessageID_CareerWinLoseData_Req,
 		CareerWinLoseDataReq: &msg.CareerWinLoseDataReq{Days: days},
 	})
 }
 
-func (obj *client) sendCareerRoomRecords(days uint32) {
+func (obj *Client) SendCareerRoomRecords(days uint32) {
 	obj.sendProtocol(&msg.Protocol{
 		Msgid:                msg.MessageID_CareerRoomRecords_Req,
 		CareerRoomRecordsReq: &msg.CareerRoomRecordsReq{Days: days},
 	})
 }
 
-func (obj *client) handleConnection(conn *rapidnet.Connection) {
+func (obj *Client) handleConnection(conn *rapidnet.Connection) {
 	defer base.LogPanic()
 	defer func() {
 		log(obj, "exit handleConnection.")
@@ -420,11 +472,11 @@ func (obj *client) handleConnection(conn *rapidnet.Connection) {
 				return
 			}
 
-			obj.protoHandler.getProtoChan() <- &p
+			obj.Send(clientEventNetworkMessage, []interface{}{&p})
 		}
 	}
 }
 
-func log(c *client, args ...interface{}) {
+func log(c *Client, args ...interface{}) {
 	base.LogInfo("fbID:", c.fbID, " ---- ", fmt.Sprint(args...))
 }
