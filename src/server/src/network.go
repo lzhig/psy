@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"./msg"
 
@@ -82,6 +83,8 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 			//userconn.user = nil
 		}
 	}()
+	ticker := time.NewTicker(time.Second * 5)
+	lastTime := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,19 +107,30 @@ func (obj *NetworkEngine) handleConnection(ctx context.Context, args ...interfac
 				base.LogWarn("receive request while no login. address:", userconn.conn.RemoteAddr().String())
 				userconn.Disconnect()
 				return
-			}
-
-			if p.Msgid != msg.MessageID_Login_Req && userconn.user == nil {
-				base.LogError("Please login first. address:", userconn.conn.RemoteAddr().String())
-				userconn.Disconnect()
-				return
 			} else if p.Msgid == msg.MessageID_Login_Req && userconn.user != nil {
 				base.LogError("Already login.", userconn.conn.RemoteAddr().String())
 				userconn.Disconnect()
 				return
 			}
 
+			lastTime = time.Now()
+
 			obj.handle(p.Msgid, &ProtocolConnection{p: p, userconn: userconn, user: userconn.user})
+
+		case <-ticker.C:
+			// 登录超时
+			if userconn.user == nil && time.Now().Sub(lastTime) > time.Duration(gApp.config.Server.LoginTimeout)*time.Second {
+				base.LogInfo("login timeout.")
+				userconn.Disconnect()
+				return
+			}
+
+			// idle超时
+			if time.Now().Sub(lastTime) > time.Duration(gApp.config.Server.IdleTime)*time.Second {
+				base.LogInfo("disconnect idle connection.")
+				userconn.Disconnect()
+				return
+			}
 		}
 	}
 }

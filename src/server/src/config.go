@@ -16,9 +16,11 @@ import (
 )
 
 type serverConfig struct {
-	Addr     string `json:"addr"`      // 服务器地址
-	MaxUsers uint32 `json:"max_users"` // 最大用户数
-	Gm       string `json:"gm"`        // gm地址
+	Addr         string `json:"addr"`          // 服务器地址
+	MaxUsers     uint32 `json:"max_users"`     // 最大用户数
+	IdleTime     uint32 `json:"idle_time"`     // 最大闲置时间,单位s
+	LoginTimeout uint32 `json:"login_timeout"` // 登录超时,单位s
+	Gm           string `json:"gm"`            // gm地址
 }
 
 type mysqlConfig struct {
