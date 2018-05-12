@@ -78,8 +78,12 @@ func (obj *RoomManager) handleCreateRoomReq(arg interface{}) {
 	if !req.IsShare {
 		diamonds := gApp.config.Room.RoomRate * req.Hands
 		op := &ConsumeDiamondsOperation{Users: []*User{user}, Diamonds: diamonds}
-		if err := op.Execute(); err != nil {
-			rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Consume_Diamonds_Failed
+		if _, err := op.Execute(); err != nil {
+			if err == ErrorNotEnoughDiamonds {
+				rsp.CreateRoomRsp.Ret = msg.ErrorID_CreateRoom_Not_Enough_Diamonds
+			} else {
+				rsp.CreateRoomRsp.Ret = msg.ErrorID_DB_Error
+			}
 			return
 		}
 		// 发送扣除钻石通知

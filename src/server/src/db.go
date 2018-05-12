@@ -189,13 +189,13 @@ func (obj *mysqlDB) GiveFreeDiamonds(uid, diamonds uint32) error {
 // ErrorNotEnoughDiamonds 错误
 var ErrorNotEnoughDiamonds = errors.New("diamonds are not enough")
 
-func (obj *mysqlDB) ConsumeDiamonds(uids []uint32, diamonds uint32) error {
+func (obj *mysqlDB) ConsumeDiamonds(uids []uint32, diamonds uint32) ([]uint32, error) {
 	success := false
 	//usersDiamonds := make([]uint32, len(uids))
 	tx, err := obj.db.Begin()
 	if err != nil {
 		base.LogError("PayDiamonds: failed to start a transaction, error:", err)
-		return err
+		return nil, err
 	}
 	defer func() {
 		if !success {
@@ -203,17 +203,21 @@ func (obj *mysqlDB) ConsumeDiamonds(uids []uint32, diamonds uint32) error {
 		}
 	}()
 
+	nomoneyUids := make([]uint32, 0, len(uids))
+	allUsersHaveEnoughDiamonds := true
 	for _, uid := range uids {
 		result, err := tx.Exec("update users set diamonds=diamonds-? where uid=? and diamonds >= ?", diamonds, uid, diamonds)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		rows, err := result.RowsAffected()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if rows != 1 {
-			return ErrorNotEnoughDiamonds
+			allUsersHaveEnoughDiamonds = false
+			nomoneyUids = append(nomoneyUids, uid)
+			//return nil, ErrorNotEnoughDiamonds
 		}
 
 		// _, err = tx.Exec("update users set diamonds=diamonds+? where uid=?", diamonds, to)
@@ -222,10 +226,12 @@ func (obj *mysqlDB) ConsumeDiamonds(uids []uint32, diamonds uint32) error {
 		// 	return nil, err
 		// }
 
-		_, err = tx.Exec("insert into diamond_records (`timestamp`,`from`,`to`,diamonds) values(?,?,?,?)", time.Now().Unix(), uid, 0, diamonds)
-		if err != nil {
-			base.LogError("failed to update db. error:", err)
-			return err
+		if allUsersHaveEnoughDiamonds {
+			_, err = tx.Exec("insert into diamond_records (`timestamp`,`from`,`to`,diamonds) values(?,?,?,?)", time.Now().Unix(), uid, 0, diamonds)
+			if err != nil {
+				base.LogError("failed to update db. error:", err)
+				return nil, err
+			}
 		}
 
 		// var newDiamonds uint32
@@ -238,10 +244,14 @@ func (obj *mysqlDB) ConsumeDiamonds(uids []uint32, diamonds uint32) error {
 		// usersDiamonds[ndx] = newDiamonds
 	}
 
+	if !allUsersHaveEnoughDiamonds {
+		return nomoneyUids, ErrorNotEnoughDiamonds
+	}
+
 	success = true
 	tx.Commit()
 
-	return err
+	return nil, err
 }
 
 func (obj *mysqlDB) PayDiamonds(from, to, diamonds uint32, diamondsFee uint32, keep uint32) (uint32, error) {

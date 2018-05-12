@@ -857,13 +857,18 @@ func (obj *Room) handleStartGameReq(arg interface{}) {
 
 		// 扣钻
 		// 如果是aa制，开局时平摊
-		if obj.isShare {
+		if obj.isShare && obj.playedHands == 0 {
 			totalDiamonds := obj.hands * gApp.config.Room.RoomRate
 			diamonds := uint32(math.Ceil(float64(totalDiamonds) / float64(num)))
 
 			op := &ConsumeDiamondsOperation{Users: users, Diamonds: diamonds}
-			if err := op.Execute(); err != nil {
-				rsp.StartGameRsp.Ret = msg.ErrorID_StartGame_Consume_Diamonds_Failed
+			if uids, err := op.Execute(); err != nil {
+				if err == ErrUserConsumingDiamonds {
+					rsp.StartGameRsp.Ret = msg.ErrorID_StartGame_Consuming_diamonds
+				} else if err == ErrorNotEnoughDiamonds {
+					rsp.StartGameRsp.Ret = msg.ErrorID_StartGame_Not_Enough_Diamonds
+					rsp.StartGameRsp.NomoneyUids = uids
+				}
 				return false
 			}
 

@@ -204,24 +204,26 @@ type ConsumeDiamondsOperation struct {
 	Diamonds uint32
 }
 
-func (obj *ConsumeDiamondsOperation) Execute() error {
+var ErrUserConsumingDiamonds = fmt.Errorf("someone is consuming diamonds.")
+
+func (obj *ConsumeDiamondsOperation) Execute() ([]uint32, error) {
 	uids := make([]uint32, len(obj.Users))
 	for ndx, user := range obj.Users {
 		if !user.BeginConsumeDiamonds() {
-			return fmt.Errorf("someone is consuming diamonds.")
+			return nil, ErrUserConsumingDiamonds
 		}
 		defer user.EndConsumeDiamonds()
 		uids[ndx] = user.uid
 	}
 
 	// 数据库执行
-	if err := db.ConsumeDiamonds(uids, obj.Diamonds); err != nil {
-		return err
+	if users, err := db.ConsumeDiamonds(uids, obj.Diamonds); err != nil {
+		return users, err
 	}
 
 	for _, user := range obj.Users {
 		user.SubDiamonds(obj.Diamonds)
 	}
 
-	return nil
+	return nil, nil
 }

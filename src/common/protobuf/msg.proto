@@ -132,7 +132,6 @@ enum ErrorID {
     CreateRoom_Not_Enough_Diamonds = 103; // 开房钻石不够
     CreateRoom_Exceed_Limitation_Rooms = 104; // 超出房间总数上限
     CreateRoom_Invalid_Hands = 105; // 非法的hands
-    CreateRoom_Consume_Diamonds_Failed = 106; // 扣钻石失败
 
     JoinRoom_Wrong_Room_Number = 110; // 错误的房号或者房间已关闭
     JoinRoom_Full = 111; // 已满
@@ -158,7 +157,7 @@ enum ErrorID {
     StartGame_Not_Enough_Players = 161; // 人数不够
     StartGame_Not_Enough_Diamonds = 162; // 钻石不够
     StartGame_Not_Ready_State = 163; // 不是准备阶段，不能开始游戏
-    StartGame_Consume_Diamonds_Failed = 164; // 扣钻石失败
+    StartGame_Consuming_diamonds = 164; // 玩家不能同时进行多个支付钻石操作
 
     Bet_Not_Bet_State = 170; // 不是下注阶段，不能下注
     Bet_Banker_Cannot_Bet = 171; // 庄家不能下注
@@ -538,6 +537,7 @@ message StartGameReq {
 
 message StartGameRsp {
     ErrorID ret = 1;
+    repeated uint32 nomoney_uids = 2; // ret为StartGame_Not_Enough_Diamonds时，有效，返回钱不够的uid
 }
 
 // bet
