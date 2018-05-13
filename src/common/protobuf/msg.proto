@@ -338,6 +338,7 @@ message SendDiamondsReq {
 message SendDiamondsRsp {
     ErrorID ret = 1;
     uint32 diamonds = 2;
+    uint32 diamonds_kept = 3; // ret为SendDiamonds_Not_Enough_Diamonds, 为需要保留的钻石
 }
 
 enum KickType {

@@ -77,6 +77,7 @@ func (obj *DiamondsCenter) handleSendDiamondsReq(arg interface{}) {
 	newDiamonds, err := db.PayDiamonds(user.uid, req.Uid, req.Diamonds, diamondsFee, obj.freeDiamonds.GetDiamondsKept())
 	if err == ErrorNotEnoughDiamonds {
 		rsp.SendDiamondsRsp.Ret = msg.ErrorID_SendDiamonds_Not_Enough_Diamonds
+		rsp.SendDiamondsRsp.DiamondsKept = obj.freeDiamonds.GetDiamondsKept()
 		return
 	} else if err != nil {
 		rsp.SendDiamondsRsp.Ret = msg.ErrorID_DB_Error
