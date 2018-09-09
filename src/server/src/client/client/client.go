@@ -44,6 +44,7 @@ type Client struct {
 
 	robot *robot.Robot
 
+	joiningRoomID   uint32
 	room            *msg.Room
 	waittingPlayers uint32
 
@@ -76,6 +77,7 @@ func (obj *Client) Init(addr string, timeout uint32, fbID string, roomNumber uin
 			return
 		}
 
+		base.LogInfo(p)
 		if !obj.networkPacketHandler.Handle(p.Msgid, p) {
 			base.LogError("cannot find handler for msgid:", msg.MessageID_name[int32(p.Msgid)])
 			//obj.conn.Disconnect()
@@ -155,7 +157,7 @@ func (obj *Client) initRobotNormalAi() {
 	strategy = &robot.RobotStrategy{}
 	strategy.Set([]*robot.RobotAction{
 		robot.NewRobotAction(10, func() {
-			log(obj, "players: ", obj.room.Players)
+			//log(obj, "players: ", obj.room.Players)
 			tablePlayers := obj.getTablePlayers()
 			if obj.room.State == msg.GameState_Ready && obj.seatID == 0 && tablePlayers > obj.waittingPlayers {
 				obj.SendStartGame()
@@ -319,6 +321,8 @@ func (obj *Client) JoinAvaliableRoom() {
 	if room == nil {
 		obj.SendCreateRoom()
 	} else {
+		obj.joiningRoomID = room.GetID()
+		obj.roomManager.JoiningRoom(room.GetID(), true)
 		obj.sendProtocol(
 			&msg.Protocol{
 				Msgid: msg.MessageID_JoinRoom_Req,

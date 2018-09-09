@@ -71,9 +71,10 @@ func (obj *mysqlDB) UpdateName(uid uint32, name string) error {
 }
 
 func (obj *mysqlDB) CreateUser(name, avatar string, diamonds uint32, platformID uint32) (uint32, error) {
-	result, err := obj.db.Exec("insert into users (`name`,avatar,diamonds,platform,regtime,logintime) values(?,?,?,?,UNIX_TIMESTAMP(NOW()),UNIX_TIMESTAMP(NOW()))",
+	result, err := obj.db.Exec("insert into users (`name`,avatar,diamonds,platform,regtime,logintime,status) values(?,?,?,?,UNIX_TIMESTAMP(NOW()),UNIX_TIMESTAMP(NOW()),0)",
 		name, avatar, diamonds, platformID)
 	if err != nil {
+		base.LogError("failed to create user. error:", err)
 		return 0, err
 	}
 

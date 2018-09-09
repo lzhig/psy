@@ -222,22 +222,24 @@ func (obj *Round) HandleTimeout(state msg.GameState) {
 				} else {
 					// 庄家站起
 					player := obj.room.tablePlayers[0]
-					obj.room.tablePlayers[0] = nil
-					player.seatID = -1
-					base.LogInfo("the banker stands up. uid:", player.uid)
-					if player.conn == nil {
-						obj.room.kickPlayer(player.uid)
-					}
+					if player != nil {
+						obj.room.tablePlayers[0] = nil
+						player.seatID = -1
+						base.LogInfo("the banker stands up. uid:", player.uid)
+						if player.conn == nil {
+							obj.room.kickPlayer(player.uid)
+						}
 
-					obj.room.notifyAll(
-						&msg.Protocol{
-							Msgid: msg.MessageID_StandUp_Notify,
-							StandUpNotify: &msg.StandUpNotify{
-								Uid:    player.uid,
-								SeatId: uint32(0),
-								Reason: msg.StandUpReason_BankerNotAutoBanker,
-							}},
-					)
+						obj.room.notifyAll(
+							&msg.Protocol{
+								Msgid: msg.MessageID_StandUp_Notify,
+								StandUpNotify: &msg.StandUpNotify{
+									Uid:    player.uid,
+									SeatId: uint32(0),
+									Reason: msg.StandUpReason_BankerNotAutoBanker,
+								}},
+						)
+					}
 					// 局数+1
 					obj.room.nextRound()
 					obj.switchGameState(msg.GameState_Ready)

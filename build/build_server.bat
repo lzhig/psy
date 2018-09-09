@@ -6,7 +6,7 @@ set GOARCH=amd64
 set GOOS=linux
 
 cd %SRC_DIR%\server\src
-go build -o %VERSIONS_DIR%\test\pusoy_server
+go build -o %VERSIONS_DIR%\test\server\pusoy_server
 cd %BUILD_DIR%
 
 @echo ------------------------  

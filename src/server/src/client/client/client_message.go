@@ -42,17 +42,18 @@ func (obj *Client) handleListRooms(args interface{}) {
 
 func (obj *Client) handleJoinRoom(args interface{}) {
 	p := args.(*msg.Protocol)
+	obj.roomManager.JoiningRoom(obj.joiningRoomID, false)
 	if p.JoinRoomRsp.Ret == msg.ErrorID_Ok {
 		obj.room = p.JoinRoomRsp.Room
 		log(obj, "JoinRoom. roomid:", obj.room.RoomId)
 
 		// 入座的玩家数
-		num := uint32(0)
-		for _, player := range p.JoinRoomRsp.Room.Players {
-			if player.SeatId >= 0 {
-				num++
-			}
-		}
+		// num := uint32(0)
+		// for _, player := range p.JoinRoomRsp.Room.Players {
+		// 	if player.SeatId >= 0 {
+		// 		num++
+		// 	}
+		// }
 		obj.roomManager.JoinRoom(obj.uid, p.JoinRoomRsp.Room.RoomId)
 		obj.robot.DoAction(actionJoinRoom)
 	} else if p.JoinRoomRsp.Ret == msg.ErrorID_JoinRoom_Full ||

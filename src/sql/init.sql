@@ -36,7 +36,7 @@ DROP TABLE IF EXISTS `facebook_users`;
 
 CREATE TABLE `facebook_users` (
   `uid` int(11) unsigned NOT NULL,
-  `fbid` varchar(16) NOT NULL,
+  `fbid` varchar(64) NOT NULL,
   PRIMARY KEY (`uid`),
   UNIQUE KEY `index_fbid` (`fbid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;

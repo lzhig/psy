@@ -42,6 +42,28 @@ func (obj *RoomManager) CloseRoom(id uint32) {
 	obj.mu.Unlock()
 }
 
+// JoiningRoom 正在加入房间
+func (obj *RoomManager) JoiningRoom(rid uint32, joining bool) {
+	obj.mu.Lock()
+	if room, ok := obj.rooms[rid]; ok {
+		room.PlayerJoining(joining)
+	} else {
+		panic(fmt.Errorf("cannot find the room(%d)", rid))
+	}
+	obj.mu.Unlock()
+}
+
+// SittingRoom 正在入座
+func (obj *RoomManager) SittingRoom(rid uint32, sitting bool) {
+	obj.mu.Lock()
+	if room, ok := obj.rooms[rid]; ok {
+		room.PlayerSitting(sitting)
+	} else {
+		panic(fmt.Errorf("cannot find the room(%d)", rid))
+	}
+	obj.mu.Unlock()
+}
+
 // JoinRoom 玩家加入房间
 func (obj *RoomManager) JoinRoom(uid, id uint32) {
 	obj.mu.Lock()
@@ -93,7 +115,7 @@ func (obj *RoomManager) GetRandomRoom() *Room {
 	l := len(obj.rooms)
 	rooms := make([]*Room, 0, l)
 	for _, room := range obj.rooms {
-		if room.CanSitDown() {
+		if room.CanJoin() {
 			rooms = append(rooms, room)
 		}
 	}
@@ -113,6 +135,14 @@ type Room struct {
 	number       string
 	players      map[uint32]uint32
 	tablePlayers map[uint32]uint32
+
+	playersJoining uint32
+	playersSitting uint32
+}
+
+// GetID 获取id
+func (obj *Room) GetID() uint32 {
+	return obj.id
 }
 
 // GetNumber 获取房号
@@ -127,6 +157,24 @@ func NewRoom(id uint32, number string) *Room {
 		number:       number,
 		players:      make(map[uint32]uint32),
 		tablePlayers: make(map[uint32]uint32),
+	}
+}
+
+// PlayerJoining 有玩家正在加入房间
+func (obj *Room) PlayerJoining(joining bool) {
+	if joining {
+		obj.playersJoining++
+	} else {
+		obj.playersJoining--
+	}
+}
+
+// PlayerSitting 有玩家存在入座
+func (obj *Room) PlayerSitting(sitting bool) {
+	if sitting {
+		obj.playersSitting++
+	} else {
+		obj.playersSitting--
 	}
 }
 
@@ -162,4 +210,9 @@ func (obj *Room) PlayerStandUp(uid uint32) {
 // CanSitDown 是否可以坐下
 func (obj *Room) CanSitDown() bool {
 	return len(obj.tablePlayers) < 4
+}
+
+// CanJoin 是否可以加入
+func (obj *Room) CanJoin() bool {
+	return len(obj.players)+int(obj.playersJoining) < 4
 }

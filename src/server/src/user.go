@@ -303,7 +303,7 @@ func (obj *UserManager) CreateUser(pu PlatformUser, conn *Connection) (*User, er
 		return nil, err
 	}
 	if err := pu.SaveToDB(uid); err != nil {
-		base.LogError("[UserManager][CreateUser] Failed to Save to db. uid:", uid, ", user:", pu)
+		base.LogError("[UserManager][CreateUser] error:", err, ". uid:", uid, ", user:", pu)
 		return nil, err
 	}
 	user, err := obj.createUser(uid, conn)
